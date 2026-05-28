@@ -12,6 +12,10 @@ public final class LicenseStateModel {
 
     public init(gate: LicenseGate = .shared) {
         self.gate = gate
+        // Kick off the first refresh so observing views don't have to wait for
+        // their own .task modifier to fire — .task on a body that initially
+        // resolves to EmptyView doesn't always run.
+        Task { await self.refresh() }
     }
 
     public func refresh() async {
