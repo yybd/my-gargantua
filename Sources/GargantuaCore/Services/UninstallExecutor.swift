@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import GargantuaLicensing
 import Security
 
 /// Authorization token passed to privileged uninstall helpers.
@@ -79,6 +80,7 @@ public enum UninstallExecutionError: Error, Equatable, LocalizedError {
     case protectedItemsRequireFullModalOverride
     case authorizationRequired
     case unsupportedCleanupMethod(CleanupMethod)
+    case licenseBlocked(BlockReason)
 
     public var errorDescription: String? {
         switch self {
@@ -88,6 +90,10 @@ public enum UninstallExecutionError: Error, Equatable, LocalizedError {
             "Admin authorization is required to remove privileged uninstall items."
         case .unsupportedCleanupMethod(let method):
             "Uninstall execution supports Trash-first cleanup only, not \(method.rawValue)."
+        case .licenseBlocked(.trialExpired):
+            "Your Gargantua trial has ended. Activate a license to keep uninstalling apps."
+        case .licenseBlocked(.noLicense):
+            "Activate a Gargantua license to uninstall apps."
         }
     }
 }
@@ -185,6 +191,10 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
         let scanItems = items.map { $0.toScanResult() }
         if options.dryRun {
             return dryRunResult(items: scanItems)
+        }
+
+        if case .blocked(let reason) = await LicenseGate.shared.canExecuteDestructiveAction() {
+            throw UninstallExecutionError.licenseBlocked(reason)
         }
 
         try validateProtection(for: items, options: options)

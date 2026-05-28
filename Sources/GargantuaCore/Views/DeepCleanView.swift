@@ -1,3 +1,4 @@
+import GargantuaLicensing
 import OSLog
 import SwiftUI
 
@@ -231,6 +232,14 @@ public struct DeepCleanView: View {
     private func confirmCleanup(_ items: [ScanResult], method: CleanupMethod) {
         session.beginCleanup(method: method)
         session.activeTask = Task {
+            // License gate fronts every Deep Clean execute. Phase 3 will swap
+            // the severTether fallback for an "Unlock Gargantua" sheet that
+            // links to FastSpring checkout.
+            if case .blocked(let reason) = await LicenseGate.shared.canExecuteDestructiveAction() {
+                logger.info("Deep Clean blocked by license gate: \(String(describing: reason))")
+                await MainActor.run { session.severTether() }
+                return
+            }
             let engine = CleanupEngine()
             let result = await engine.clean(items, method: method, observer: session.pathStream)
             do {

@@ -119,6 +119,12 @@ let package = Package(
                 .product(name: "Tokenizers", package: "swift-transformers")
             ],
             path: "Tests/GargantuaCoreTests"
+        ),
+        .testTarget(
+            name: "GargantuaLicensingTests",
+            dependencies: ["GargantuaLicensing"],
+            path: "Tests/GargantuaLicensingTests",
+            swiftSettings: licensingSwiftSettings
         )
     ]
 )
