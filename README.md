@@ -282,6 +282,19 @@ For the local helper binaries and MLX shader setup used by the test/release scri
 Scripts/test.sh
 ```
 
+### Open-source vs commercial builds
+
+Gargantua's source is AGPL-3.0. `swift build` from a clean clone produces a **fully unlocked** binary — no trial timer, no license gate, no buy CTA. That is the open-source path and it is always free.
+
+Official notarized releases (the DMG on the GitHub Release, the Homebrew cask, the FastSpring storefront) build with the `GARGANTUA_LICENSING=1` environment variable set. That flag activates a 14-day trial clock and the license gate that fronts destructive actions. After the trial, scans still run; Deep Clean / Uninstaller / Quarantine execute paths gate behind a license key.
+
+If you maintain or contribute to Gargantua and want to test the licensed code path locally:
+
+```bash
+GARGANTUA_LICENSING=1 swift build
+GARGANTUA_LICENSING=1 swift run Gargantua
+```
+
 ## Releasing
 
 Releases are cut locally on a developer's Mac. The pipeline produces a signed, notarized, stapled DMG plus a signed Sparkle appcast, uploads both to a GitHub Release, and pushes a refreshed Cask to `inceptyon-labs/homebrew-tap`.

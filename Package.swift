@@ -8,6 +8,15 @@ let schedulerInfoPlistPath = URL(fileURLWithPath: #filePath)
     .appendingPathComponent("Sources/GargantuaScheduler/Info.plist")
     .path
 
+// GARGANTUA_LICENSING=1 in the environment turns on the commercial-licensing
+// build path (trial clock, license gate enforcement, FastSpring activation).
+// Off by default — `swift build` from a fresh clone produces a fully unlocked
+// AGPL binary. Release CI sets the env var; see Scripts/release/build.sh.
+let licensingEnabled = Context.environment["GARGANTUA_LICENSING"] == "1"
+let licensingSwiftSettings: [SwiftSetting] = licensingEnabled
+    ? [.define("GARGANTUA_LICENSING")]
+    : []
+
 let package = Package(
     name: "Gargantua",
     platforms: [
@@ -15,6 +24,7 @@ let package = Package(
     ],
     products: [
         .library(name: "GargantuaCore", targets: ["GargantuaCore"]),
+        .library(name: "GargantuaLicensing", targets: ["GargantuaLicensing"]),
         .executable(name: "Gargantua", targets: ["Gargantua"]),
         .executable(name: "GargantuaScheduler", targets: ["GargantuaScheduler"]),
         .executable(name: "GargantuaMCP", targets: ["GargantuaMCP"]),
@@ -32,6 +42,7 @@ let package = Package(
             dependencies: [
                 "GargantuaCore",
                 "GargantuaAppKitShims",
+                "GargantuaLicensing",
                 .product(name: "Sparkle", package: "Sparkle")
             ],
             path: "Sources/Gargantua",
@@ -80,6 +91,7 @@ let package = Package(
         .target(
             name: "GargantuaCore",
             dependencies: [
+                "GargantuaLicensing",
                 "Yams",
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
@@ -94,6 +106,11 @@ let package = Package(
                 .copy("Resources/Brand"),
                 .copy("Resources/bin")
             ]
+        ),
+        .target(
+            name: "GargantuaLicensing",
+            path: "Sources/GargantuaLicensing",
+            swiftSettings: licensingSwiftSettings
         ),
         .testTarget(
             name: "GargantuaCoreTests",

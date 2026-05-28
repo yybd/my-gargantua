@@ -16,6 +16,13 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log "Building $APP_NAME $VERSION ($BUILD) for arm64-apple-macosx..."
 
+# Release builds opt into the commercial-licensing code path (trial clock,
+# license gate, FastSpring activation). Package.swift reads this env var via
+# Context.environment and applies .define("GARGANTUA_LICENSING") to the
+# GargantuaLicensing target. Source builds (plain `swift build`) leave it unset
+# and produce a fully unlocked AGPL binary.
+export GARGANTUA_LICENSING=1
+
 run swift build \
     --package-path "$REPO_ROOT" \
     -c release \
