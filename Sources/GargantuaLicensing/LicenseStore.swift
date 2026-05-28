@@ -16,7 +16,7 @@ public final class LicenseStore: @unchecked Sendable {
     public convenience init() {
         self.init(
             fileURL: LicenseStore.defaultFileURL,
-            publicKey: LicenseSigningKeys.developmentPublicKey
+            publicKey: LicenseSigningKeys.productionPublicKey
         )
     }
 
