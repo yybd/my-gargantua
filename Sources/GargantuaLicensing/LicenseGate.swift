@@ -12,10 +12,7 @@ public actor LicenseGate {
     }
 
     public static func makeDefault() -> LicenseGate {
-        LicenseGate(
-            store: LicenseStore(),
-            clock: TrialClock()
-        )
+        LicenseGate(store: LicenseStore(), clock: TrialClock())
     }
 
     public func canExecuteDestructiveAction() async -> GateDecision {
@@ -31,20 +28,19 @@ public actor LicenseGate {
         }
     }
 
+    /// Reads only the local cache + trial clock — never blocks on the network.
+    /// Background revalidation (see `revalidate`) keeps the cache fresh.
     public func currentState() async -> LicenseState {
         #if GARGANTUA_LICENSING
-            if let receipt = store.loadValidReceipt() {
+            if let receipt = store.loadCachedReceipt(), store.isCurrentlyValid(receipt) {
                 return .licensed(
-                    email: receipt.email ?? "—",
-                    name: receipt.name ?? "—",
-                    activatedAt: receipt.activatedDate ?? Date()
+                    email: receipt.email ?? receipt.displayName,
+                    name: receipt.name ?? "",
+                    activatedAt: receipt.activatedAt
                 )
             }
             let days = clock.daysRemaining()
-            if days > 0 {
-                return .trial(daysRemaining: days)
-            }
-            return .expired
+            return days > 0 ? .trial(daysRemaining: days) : .expired
         #else
             return .licensed(
                 email: "source-build@local",
@@ -53,20 +49,26 @@ public actor LicenseGate {
             )
         #endif
     }
-}
 
-extension LicenseReceipt {
-    /// Best-effort parse of the `Timestamp` field — FastSpring's AquaticPrime
-    /// template emits this in RFC822 format. Falls through to nil when the
-    /// field is missing or unparseable; callers should fall back to `Date()`.
-    public var activatedDate: Date? {
-        guard let stamp = timestampString else { return nil }
-        let rfc822 = DateFormatter()
-        rfc822.locale = Locale(identifier: "en_US_POSIX")
-        rfc822.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
-        if let date = rfc822.date(from: stamp) { return date }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime]
-        return iso.date(from: stamp)
+    // MARK: - Mutations (network)
+
+    public func activate(key: String) async -> Result<LicenseReceipt, PolarLicenseError> {
+        do {
+            return .success(try await store.activate(key: key))
+        } catch let error as PolarLicenseError {
+            return .failure(error)
+        } catch {
+            return .failure(.network(error.localizedDescription))
+        }
+    }
+
+    /// Best-effort background refresh. Swallows network errors so offline grace
+    /// keeps the cached state; only revocation / not-found clears the cache.
+    public func revalidate() async {
+        _ = try? await store.revalidate()
+    }
+
+    public func deactivate() async {
+        try? await store.deactivate()
     }
 }

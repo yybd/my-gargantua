@@ -1,40 +1,68 @@
 import Foundation
 
-/// AquaticPrime-style license plist. FastSpring emits these as `.gargantualicense`
-/// files at sale time, with arbitrary customer-info fields plus a `Signature` data
-/// field. We verify the signature against the canonical form (all fields except
-/// `Signature`, sorted by key, values concatenated as UTF-8 bytes) and accept
-/// any field set the storefront chooses to send.
-public struct LicenseReceipt: Sendable, Equatable {
-    public static let signatureKey = "Signature"
+public enum LicenseKeyStatus: String, Sendable, Codable, Equatable {
+    case granted
+    case revoked
+    case disabled
+    case unknown
 
-    /// All license fields except `Signature`, as written by FastSpring. Keys
-    /// commonly seen: `Name`, `Email`, `Product`, `Order`, `Timestamp`.
-    public let fields: [String: String]
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = LicenseKeyStatus(rawValue: raw) ?? .unknown
+    }
+}
 
-    /// Raw signature bytes extracted from the plist's `Signature` data entry.
-    public let signature: Data
+/// Locally persisted record of a Polar license activation. Cached at
+/// `~/Library/Application Support/Gargantua/license.json` after a successful
+/// `activate`, refreshed by background `validate` calls. `lastValidated`
+/// drives the offline grace window (see `LicensePolarConfig`).
+public struct LicenseReceipt: Sendable, Equatable, Codable {
+    public let key: String
+    public let activationId: String
+    public let email: String?
+    public let name: String?
+    public let status: LicenseKeyStatus
+    public let activatedAt: Date
+    public let lastValidated: Date
 
-    public init(fields: [String: String], signature: Data) {
-        self.fields = fields
-        self.signature = signature
+    public init(
+        key: String,
+        activationId: String,
+        email: String?,
+        name: String?,
+        status: LicenseKeyStatus,
+        activatedAt: Date,
+        lastValidated: Date
+    ) {
+        self.key = key
+        self.activationId = activationId
+        self.email = email
+        self.name = name
+        self.status = status
+        self.activatedAt = activatedAt
+        self.lastValidated = lastValidated
     }
 
-    public var email: String? { fields["Email"] }
-    public var name: String? { fields["Name"] }
-    public var product: String? { fields["Product"] }
-    public var order: String? { fields["Order"] }
-    public var timestampString: String? { fields["Timestamp"] }
+    /// Returns a copy with refreshed status / customer info and a new
+    /// validation timestamp, preserving identity fields.
+    public func revalidated(
+        status: LicenseKeyStatus,
+        email: String?,
+        name: String?,
+        at date: Date
+    ) -> LicenseReceipt {
+        LicenseReceipt(
+            key: key,
+            activationId: activationId,
+            email: email ?? self.email,
+            name: name ?? self.name,
+            status: status,
+            activatedAt: activatedAt,
+            lastValidated: date
+        )
+    }
 
-    /// Canonical message: values of non-signature fields, sorted alphabetically
-    /// by key, concatenated as UTF-8 bytes. AquaticPrime spec, matches what
-    /// FastSpring signs on the server side.
-    public func canonicalMessage() -> Data {
-        var data = Data()
-        for key in fields.keys.sorted() {
-            guard let value = fields[key] else { continue }
-            data.append(Data(value.utf8))
-        }
-        return data
+    public var displayName: String {
+        name ?? email ?? "your license"
     }
 }

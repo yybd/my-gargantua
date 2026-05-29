@@ -286,7 +286,7 @@ Scripts/test.sh
 
 Gargantua's source is AGPL-3.0. `swift build` from a clean clone produces a **fully unlocked** binary — no trial timer, no license gate, no buy CTA. That is the open-source path and it is always free.
 
-Official notarized releases (the DMG on the GitHub Release, the Homebrew cask, the FastSpring storefront) build with the `GARGANTUA_LICENSING=1` environment variable set. That flag activates a 14-day trial clock and the license gate that fronts destructive actions. After the trial, scans still run; Deep Clean / Uninstaller / Quarantine execute paths gate behind a license key.
+Official notarized releases (the DMG on the GitHub Release, the Homebrew cask, the Polar.sh storefront) build with the `GARGANTUA_LICENSING=1` environment variable set. That flag activates a 14-day trial clock and the license gate that fronts destructive actions. After the trial, scans still run; Deep Clean / Uninstaller / Quarantine execute paths gate behind a license key. Licenses are sold through [Polar.sh](https://polar.sh) and validated against their public customer-portal API — see `docs/licensing/`.
 
 If you maintain or contribute to Gargantua and want to test the licensed code path locally:
 

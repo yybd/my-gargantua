@@ -48,7 +48,6 @@ public struct DeepCleanView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var blockedReason: BlockReason?
-    @State private var licenseStore = LicenseStore()
 
     public var body: some View {
         ZStack {
@@ -101,28 +100,23 @@ public struct DeepCleanView: View {
                     openBuyURL()
                     blockedReason = nil
                 },
-                onActivate: { url in attemptActivate(fileURL: url) }
+                onActivate: { key in await attemptActivate(key: key) }
             )
         }
     }
 
-    private func attemptActivate(fileURL: URL) -> UnlockGargantuaSheet.ActivationOutcome {
-        do {
-            _ = try licenseStore.save(fileURL: fileURL)
-            Task { await LicenseStateModel.shared.refresh() }
+    private func attemptActivate(key: String) async -> UnlockGargantuaSheet.ActivationOutcome {
+        let result = await LicenseStateModel.shared.activate(key: key)
+        switch result {
+        case .success:
             return .ok
-        } catch LicenseStoreError.invalidSignature {
-            return .error("Signature didn't verify.")
-        } catch LicenseStoreError.malformedReceipt {
-            return .error("Not a recognizable Gargantua license file.")
-        } catch {
-            return .error(error.localizedDescription)
+        case .failure(let error):
+            return .error(LicenseErrorCopy.message(for: error))
         }
     }
 
     private func openBuyURL() {
-        guard let url = URL(string: "https://gargantua.dev/buy") else { return }
-        NSWorkspace.shared.open(url)
+        NSWorkspace.shared.open(LicensePolarConfig.checkoutURL)
     }
 
     /// Asymmetric phase transition matching SmartUninstallerView so the
