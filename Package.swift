@@ -104,7 +104,8 @@ let package = Package(
                 .copy("Resources/uninstall_rules"),
                 .copy("Resources/safety_policy"),
                 .copy("Resources/Brand"),
-                .copy("Resources/bin")
+                .copy("Resources/bin"),
+                .copy("Resources/rules-sync.json")
             ]
         ),
         .target(
