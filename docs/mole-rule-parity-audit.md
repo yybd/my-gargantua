@@ -46,7 +46,7 @@ Since the ported baseline (`fd209bf`, 2026-04-24), Mole shipped v1.40.0. Filteri
 | Upstream change | Status in Gargantua |
 | --- | --- |
 | `feat(clean): reclaim stale AI agent git worktrees` (tw93/Mole#985) | **Addressed** (`gargantua-tppt`). `GitWorktreeScanAdapter` discovers linked worktrees via `.git/worktrees/*` admin metadata (no subprocess) and surfaces prunable/inactive ones as `review`; never touches the primary worktree. |
-| `feat(optimize): prune orphaned Spotlight search rules` (tw93/Mole#1000) | **New candidate** — not covered; optimize-tier, lower value. Tracked as `gargantua-pk0p`. |
+| `feat(optimize): prune orphaned Spotlight search rules` (tw93/Mole#1000) | **Core landed** (`gargantua-pk0p`). `SpotlightOrphanRuleScanner` detects and (license-gated, dry-run-default) prunes dead reverse-DNS rows in `com.apple.Spotlight` `EnabledPreferenceRules`, keeping `System.*`/`com.apple.*`. Reclaims no disk — stays out of the file-clean pipeline. UI surfacing + uninstaller execution routing deferred. |
 | `refactor(clean): drop scan_external_volumes; never wired into main flow` | **Retires gap #5** (Rule Engine And Schema Gaps). Mole removed external-volume scanning, so it is no longer a parity target. |
 
 Other v1.40.0 changes are non-parity: status/battery-health accuracy fixes, install-attestation hardening, dead-code refactors, and `optimize`-tier corrections (Font Cache Rebuild and Dock Refresh removals) that Gargantua never implemented.
@@ -221,6 +221,6 @@ Open tail items, not blocking the epic:
 
 - Promotion of the remaining **command-action hold-list** entries (see below) once their UX models the consequence honestly.
 - Remaining **app pack** candidate: Maestro Studio, held back until active-session and project-adjacent paths can be separated.
-- **Upstream-delta** items from Mole v1.40.0 (see **Upstream Delta** above): AI-agent git worktree reclaim landed (`gargantua-tppt`, `GitWorktreeScanAdapter`); orphaned Spotlight search-rule pruning (`gargantua-pk0p`) remains a candidate.
+- **Upstream-delta** items from Mole v1.40.0 (see **Upstream Delta** above): AI-agent git worktree reclaim landed (`gargantua-tppt`, `GitWorktreeScanAdapter`); orphaned Spotlight rule pruning core landed (`gargantua-pk0p`, `SpotlightOrphanRuleScanner`), with UI + execution-routing surfacing as a follow-up.
 - The signature **Confidence Orbit** finally rendering on the Smart Uninstaller picker (`gargantua-bcpw`) is part of this epic's brand surface even though it's not strictly a parity item.
 - Public rule sync to `inceptyon-labs/gargantua-rules` remains the long-running maintenance task that is not gated on parity work.
