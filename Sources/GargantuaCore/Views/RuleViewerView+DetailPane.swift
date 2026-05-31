@@ -8,6 +8,7 @@ extension RuleViewerView {
                     VStack(alignment: .leading, spacing: GargantuaSpacing.space5) {
                         ruleDetailHeader(rule)
                         ruleMetadata(rule)
+                        ruleProvenance(rule)
                         rulePaths(rule)
                         ruleYAML(rule)
                         pathExclusionSection
