@@ -7,6 +7,19 @@ on:
       - main
 
 jobs:
+  rules-drift:
+    name: Rule Snapshot Drift
+    # Only needs git + python3 to diff the bundled snapshot against the
+    # gargantua-rules source of truth, so a cheap Linux runner is enough.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify bundled rules match their recorded upstream commit
+        run: Scripts/sync-rules.sh check
+
   lint:
     name: SwiftLint
     runs-on: macos-15
