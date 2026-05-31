@@ -57,7 +57,14 @@ struct GitWorktreeScanAdapterTests {
     func lockedWorktreeIgnored() async throws {
         let fixture = try FixtureTree()
         let repo = try fixture.makeRepo("acme")
-        try fixture.addWorktree(repo: repo, name: "locked-feature", worktreePath: fixture.root.appendingPathComponent("gone/locked-feature"), createWorkingDir: false, headAge: 90 * Self.day, locked: true)
+        try fixture.addWorktree(
+            repo: repo,
+            name: "locked-feature",
+            worktreePath: fixture.root.appendingPathComponent("gone/locked-feature"),
+            createWorkingDir: false,
+            headAge: 90 * Self.day,
+            locked: true
+        )
 
         let results = try await Self.makeAdapter(fixture).scan(progress: nil)
 
