@@ -1,9 +1,10 @@
+import AppKit
 import SwiftUI
 
-// MARK: - HSL → Color
+// MARK: - HSL → NSColor
 
-/// SwiftUI Color from HSL values (design system uses HSL, SwiftUI uses HSB).
-private func hsl(_ h: Double, _ s: Double, _ l: Double) -> Color {
+/// sRGB NSColor from HSL values (design system uses HSL, AppKit uses RGB).
+private func hslNS(_ h: Double, _ s: Double, _ l: Double, _ alpha: Double = 1) -> NSColor {
     let s = s / 100
     let l = l / 100
     let a = s * min(l, 1 - l)
@@ -11,73 +12,109 @@ private func hsl(_ h: Double, _ s: Double, _ l: Double) -> Color {
         let k = (n + h / 30).truncatingRemainder(dividingBy: 12)
         return l - a * max(min(k - 3, 9 - k, 1), -1)
     }
-    return Color(red: f(0), green: f(8), blue: f(4))
+    return NSColor(srgbRed: f(0), green: f(8), blue: f(4), alpha: alpha)
+}
+
+/// An appearance-adaptive Color. Resolves `dark` under `.darkAqua`, `light`
+/// otherwise, so a single token serves all three appearance modes (system
+/// resolves to whichever the OS is currently showing). SwiftUI re-evaluates
+/// the wrapped dynamic NSColor whenever the environment appearance flips.
+private func adaptive(light: NSColor, dark: NSColor) -> Color {
+    Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
+    })
+}
+
+/// An HSL triple, resolved to an sRGB NSColor on demand. Lets the token
+/// definitions read as `light:`/`dark:` pairs without tripping the linter's
+/// tuple / parameter-count rules.
+private struct HSLColor {
+    let h: Double
+    let s: Double
+    let l: Double
+    init(_ h: Double, _ s: Double, _ l: Double) {
+        self.h = h
+        self.s = s
+        self.l = l
+    }
+    var ns: NSColor { hslNS(h, s, l) }
+}
+
+/// Convenience: adaptive Color from light/dark HSL triples.
+private func adaptive(light: HSLColor, dark: HSLColor) -> Color {
+    adaptive(light: light.ns, dark: dark.ns)
 }
 
 // MARK: - Color Tokens
 
 /// Design system color tokens from .interface-design/system.md.
 ///
-/// Named after the Gargantua space theme — surfaces are void-dark,
-/// safety colors (green/amber/red) are the warmest things in the interface.
+/// Named after the Gargantua space theme. In dark mode (the original theme)
+/// surfaces are void-dark and the safety colors are the warmest things in the
+/// interface. Each token carries a light-mode counterpart so the whole UI
+/// adapts to the user's chosen appearance (light / dark / system).
 public enum GargantuaColors {
 
     // MARK: Surfaces
 
-    /// Canvas / page background. hsl(220, 14%, 9%)
-    public static let void_ = hsl(220, 14, 9)
-    /// Sidebar, panels. hsl(220, 12%, 11%)
-    public static let surface1 = hsl(220, 12, 11)
-    /// Cards, list rows. hsl(220, 11%, 14%)
-    public static let surface2 = hsl(220, 11, 14)
-    /// Dropdowns, elevated cards. hsl(220, 10%, 17%)
-    public static let surface3 = hsl(220, 10, 17)
-    /// Tooltips, topmost layer. hsl(220, 10%, 20%)
-    public static let surface4 = hsl(220, 10, 20)
+    /// Canvas / page background.
+    public static let void_ = adaptive(light: HSLColor(220, 22, 96), dark: HSLColor(220, 14, 9))
+    /// Sidebar, panels.
+    public static let surface1 = adaptive(light: HSLColor(220, 20, 98), dark: HSLColor(220, 12, 11))
+    /// Cards, list rows.
+    public static let surface2 = adaptive(light: HSLColor(0, 0, 100), dark: HSLColor(220, 11, 14))
+    /// Dropdowns, elevated cards.
+    public static let surface3 = adaptive(light: HSLColor(220, 24, 99), dark: HSLColor(220, 10, 17))
+    /// Tooltips, topmost layer.
+    public static let surface4 = adaptive(light: HSLColor(0, 0, 100), dark: HSLColor(220, 10, 20))
 
     // MARK: Text
 
-    /// Primary text — star-white. hsl(210, 20%, 94%)
-    public static let ink = hsl(210, 20, 94)
-    /// Secondary text — dim star gray. hsl(215, 12%, 65%)
-    public static let ink2 = hsl(215, 12, 65)
-    /// Tertiary — nebula muted. hsl(218, 10%, 45%)
-    public static let ink3 = hsl(218, 10, 45)
-    /// Disabled, placeholder. hsl(220, 8%, 30%)
-    public static let ink4 = hsl(220, 8, 30)
+    /// Primary text — star-white in dark, near-black in light.
+    public static let ink = adaptive(light: HSLColor(220, 26, 13), dark: HSLColor(210, 20, 94))
+    /// Secondary text.
+    public static let ink2 = adaptive(light: HSLColor(216, 14, 36), dark: HSLColor(215, 12, 65))
+    /// Tertiary — muted.
+    public static let ink3 = adaptive(light: HSLColor(218, 11, 50), dark: HSLColor(218, 10, 45))
+    /// Disabled, placeholder.
+    public static let ink4 = adaptive(light: HSLColor(220, 9, 68), dark: HSLColor(220, 8, 30))
 
     // MARK: Borders
 
-    /// Standard separation.
-    public static let border = Color.white.opacity(0.07)
+    /// Standard separation. White-on-void in dark, black-on-paper in light.
+    public static let border = adaptive(light: NSColor(white: 0, alpha: 0.10), dark: NSColor(white: 1, alpha: 0.07))
     /// Subtle separation.
-    public static let borderSoft = Color.white.opacity(0.04)
+    public static let borderSoft = adaptive(light: NSColor(white: 0, alpha: 0.06), dark: NSColor(white: 1, alpha: 0.04))
     /// Emphasis.
-    public static let borderEm = Color.white.opacity(0.13)
+    public static let borderEm = adaptive(light: NSColor(white: 0, alpha: 0.16), dark: NSColor(white: 1, alpha: 0.13))
+
+    /// Neutral darkening scrim used behind chips/pills. Black in dark, a
+    /// lighter black in light so it doesn't punch a hole in paper surfaces.
+    public static let scrim = adaptive(light: NSColor(white: 0, alpha: 0.06), dark: NSColor(white: 0, alpha: 0.18))
 
     // MARK: Safety Classification
 
-    /// Safe — desaturated terminal green. hsl(148, 45%, 42%)
-    public static let safe = hsl(148, 45, 42)
-    /// Safe background tint. hsla(148, 45%, 42%, 0.12)
+    /// Safe — terminal green. Darkened a touch in light for contrast on paper.
+    public static let safe = adaptive(light: HSLColor(148, 58, 34), dark: HSLColor(148, 45, 42))
+    /// Safe background tint.
     public static let safeDim = safe.opacity(0.12)
-    /// Review — accretion disc amber. hsl(38, 85%, 52%)
-    public static let review = hsl(38, 85, 52)
-    /// Review background tint. hsla(38, 85%, 52%, 0.12)
+    /// Review — accretion disc amber. Darkened in light so it reads on white.
+    public static let review = adaptive(light: HSLColor(36, 92, 42), dark: HSLColor(38, 85, 52))
+    /// Review background tint.
     public static let reviewDim = review.opacity(0.12)
     /// Accretion disc amber — alias of `review` used by the Smart Uninstaller
     /// console where the semantic is "material being pulled into Gargantua",
     /// not "needs review". Same pixels, different name.
     public static let accretion = review
-    /// Protected — deep red ember. hsl(0, 62%, 48%)
-    public static let protected_ = hsl(0, 62, 48)
-    /// Protected background tint. hsla(0, 62%, 48%, 0.12)
+    /// Protected — deep red ember.
+    public static let protected_ = adaptive(light: HSLColor(0, 68, 46), dark: HSLColor(0, 62, 48))
+    /// Protected background tint.
     public static let protectedDim = protected_.opacity(0.12)
 
     // MARK: Interactive
 
-    /// Hawking radiation blue — buttons, links, focus. hsl(213, 90%, 55%)
-    public static let accent = hsl(213, 90, 55)
+    /// Hawking radiation blue — buttons, links, focus.
+    public static let accent = adaptive(light: HSLColor(213, 90, 48), dark: HSLColor(213, 90, 55))
     /// Focus ring border — 2px accent stroke with 2px offset.
     public static let borderFocus = accent
 }

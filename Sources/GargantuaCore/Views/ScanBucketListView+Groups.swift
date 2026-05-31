@@ -93,7 +93,7 @@ extension ScanBucketListView {
             .padding(.vertical, 3)
             .background(
                 Capsule(style: .continuous)
-                    .fill(Color.black.opacity(0.18))
+                    .fill(GargantuaColors.scrim)
             )
             .overlay(
                 Capsule(style: .continuous)

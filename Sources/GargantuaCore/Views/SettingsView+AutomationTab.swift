@@ -1,6 +1,45 @@
 import SwiftUI
 
 extension SettingsView {
+    // MARK: - Appearance Section
+
+    var appearanceSection: some View {
+        SettingsSectionContainer(
+            "Appearance",
+            subtitle: "Dark is the original void theme. System follows macOS."
+        ) {
+            schedulingPickerRow(
+                icon: AppAppearance(storedValue: appearanceRawValue).icon,
+                title: "Theme",
+                detail: appearanceDetail
+            ) {
+                Picker("Theme", selection: appearanceBinding) {
+                    ForEach(AppAppearance.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+        }
+    }
+
+    private var appearanceBinding: Binding<AppAppearance> {
+        Binding(
+            get: { AppAppearance(storedValue: appearanceRawValue) },
+            set: { appearanceRawValue = $0.rawValue }
+        )
+    }
+
+    private var appearanceDetail: String {
+        switch AppAppearance(storedValue: appearanceRawValue) {
+        case .system: "Matches your macOS appearance setting"
+        case .light: "Light paper surfaces"
+        case .dark: "Void-dark surfaces"
+        }
+    }
+
     // MARK: - Scheduling Section
 
     var schedulingSection: some View {

@@ -8,8 +8,11 @@ import SwiftUI
 struct GargantuaApp: App {
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
     @AppStorage(MenuBarPreferences.widgetEnabledKey) private var menuBarWidgetEnabled = MenuBarPreferences.defaultWidgetEnabled
+    @AppStorage(AppAppearance.userDefaultsKey) private var appearanceRaw = AppAppearance.defaultValue.rawValue
     @StateObject private var updateController: AppUpdateController
     @StateObject private var menuBarStatusModel: MenuBarStatusModel
+
+    private var appearance: AppAppearance { AppAppearance(storedValue: appearanceRaw) }
 
     init() {
         Self.configureNativeToolTipDelay()
@@ -44,7 +47,10 @@ struct GargantuaApp: App {
         WindowGroup("Gargantua", id: "main") {
             MainContentView(updateSettingsViewModel: updateController.settingsViewModel)
                 .frame(minWidth: 700, minHeight: 500)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(appearance.colorScheme)
+                .onChange(of: appearanceRaw) { _, _ in
+                    AppAppearancePreference.apply(appearance)
+                }
                 .onOpenURL { url in
                     LicenseActivationLink.handle(url)
                 }
@@ -63,7 +69,7 @@ struct GargantuaApp: App {
             isInserted: $menuBarWidgetEnabled
         ) {
             GargantuaMenuBarSceneContent(model: menuBarStatusModel)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(appearance.colorScheme)
         }
         .menuBarExtraStyle(.window)
     }
@@ -173,9 +179,18 @@ struct GargantuaApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let mainWindowIdentifier = NSUserInterfaceItemIdentifier("GargantuaMainWindow")
 
+    /// Window chrome backdrop. Dark = void hsl(220, 14%, 9%); light = paper
+    /// hsl(220, 22%, 96%). Resolves against the window's effective appearance.
+    private static let voidWindowBackground = NSColor(name: nil) { appearance in
+        if appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua {
+            return NSColor(srgbRed: 0.0774, green: 0.0858, blue: 0.1026, alpha: 1.0)
+        }
+        return NSColor(srgbRed: 0.937, green: 0.945, blue: 0.957, alpha: 1.0)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
-        NSApp.appearance = NSAppearance(named: .darkAqua)
+        AppAppearancePreference.apply()
         DispatchQueue.main.async { [weak self] in
             self?.configureMainWindow()
             self?.activateMainWindow()
@@ -193,10 +208,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func configureMainWindow() {
         guard let window = Self.findMainWindow() else { return }
 
-        // Force dark chrome for native AppKit-backed controls (segmented
-        // pickers, form fields, popups) so they don't render light text on
-        // the void background.
-        window.appearance = NSAppearance(named: .darkAqua)
+        // Match native AppKit-backed controls (segmented pickers, form fields,
+        // popups) to the chosen appearance so they don't render light text on
+        // the void background (or vice-versa in light mode).
+        window.appearance = AppAppearancePreference.current.nsAppearance
 
         // Persist window position and size across launches
         window.identifier = Self.mainWindowIdentifier
@@ -207,13 +222,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titleVisibility = .hidden
         window.styleMask.insert(.fullSizeContentView)
 
-        // Void background — hsl(220, 14%, 9%) converted to RGB
-        window.backgroundColor = NSColor(
-            red: 0.0774,
-            green: 0.0858,
-            blue: 0.1026,
-            alpha: 1.0
-        )
+        // Void background — adapts between the dark void and the light paper
+        // canvas so the window chrome behind SwiftUI content matches.
+        window.backgroundColor = Self.voidWindowBackground
 
         // Add an invisible spacer in the titlebar to push traffic lights
         // down from the window edge, giving the "inset" appearance.

@@ -2,7 +2,7 @@ import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
     case ai = "AI"
-    case automation = "Automation"
+    case automation = "General"
     case network = "Network"
     case storage = "Storage"
     case license = "License"
@@ -13,7 +13,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .ai: "sparkles"
-        case .automation: "clock.arrow.circlepath"
+        case .automation: "gearshape"
         case .network: "dot.radiowaves.left.and.right"
         case .storage: "externaldrive"
         case .license: "key.fill"
@@ -24,7 +24,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var helpText: String {
         switch self {
         case .ai: "AI engines, cloud providers, and agent runtimes."
-        case .automation: "Scheduled scans and menu bar widget."
+        case .automation: "Appearance, scheduled scans, and menu bar widget."
         case .network: "MCP server transport for external clients."
         case .storage: "Scan roots, exclusions, and protected paths."
         case .license: "Activate Gargantua or check your trial status."
