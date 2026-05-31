@@ -8,42 +8,33 @@ import GargantuaLicensing
 /// Production reader/writer for the user-domain `com.apple.Spotlight`
 /// `EnabledPreferenceRules` store.
 ///
-/// `EnabledPreferenceRules` is a dictionary keyed by rule identifier (a
-/// reverse-DNS bundle id or a `System.*` / `com.apple.*` system rule) whose
-/// values are per-rule settings dictionaries. We treat the keys as the rule
-/// identifiers and rewrite the dictionary in place, preserving each retained
-/// rule's settings untouched.
-///
-/// - Important: This mutates a live macOS preference domain. The shape above
-///   should be confirmed on-device before the write path is surfaced in the UI;
-///   callers default to `dryRun` until then.
+/// `EnabledPreferenceRules` is a flat array of bundle-id strings (verified
+/// on-device, and matching Mole #1000). Each entry is either a third-party
+/// reverse-DNS bundle id or a `System.*` / `com.apple.*` system rule. Pruning
+/// rewrites the array; it never edits the plist file in place, because cfprefsd
+/// owns the cache and would clobber a direct file write.
 public struct CFPreferencesSpotlightRulesStore: SpotlightRulesReading, SpotlightRulesWriting {
-    public static let domain = "com.apple.Spotlight"
+    public static let defaultDomain = "com.apple.Spotlight"
     public static let key = "EnabledPreferenceRules"
 
-    public init() {}
+    private let domain: String
 
-    private func rulesDictionary() -> [String: Any] {
-        let value = CFPreferencesCopyAppValue(
-            Self.key as CFString,
-            Self.domain as CFString
-        )
-        return (value as? [String: Any]) ?? [:]
+    public init(domain: String = CFPreferencesSpotlightRulesStore.defaultDomain) {
+        self.domain = domain
     }
 
     public func enabledRuleIdentifiers() -> [String] {
-        Array(rulesDictionary().keys)
+        let value = CFPreferencesCopyAppValue(Self.key as CFString, domain as CFString)
+        return (value as? [String]) ?? []
     }
 
     public func write(keptIdentifiers: [String]) throws {
-        let keep = Set(keptIdentifiers)
-        let filtered = rulesDictionary().filter { keep.contains($0.key) }
-        CFPreferencesSetAppValue(
-            Self.key as CFString,
-            filtered as CFDictionary,
-            Self.domain as CFString
-        )
-        guard CFPreferencesAppSynchronize(Self.domain as CFString) else {
+        // Rewrite through cfprefsd. An empty result drops the key entirely
+        // (mirrors Mole #1000's `defaults delete`) so System Settings reflects a
+        // fully-clean state rather than a lingering empty array.
+        let newValue: CFPropertyList? = keptIdentifiers.isEmpty ? nil : (keptIdentifiers as CFArray)
+        CFPreferencesSetAppValue(Self.key as CFString, newValue, domain as CFString)
+        guard CFPreferencesAppSynchronize(domain as CFString) else {
             throw SpotlightRulesStoreError.synchronizeFailed
         }
     }
