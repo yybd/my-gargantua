@@ -45,7 +45,7 @@ Since the ported baseline (`fd209bf`, 2026-04-24), Mole shipped v1.40.0. Filteri
 
 | Upstream change | Status in Gargantua |
 | --- | --- |
-| `feat(clean): reclaim stale AI agent git worktrees` (tw93/Mole#985) | **New candidate** — not covered. On-brand dev/AI-tooling reclaim. Tracked as `gargantua-tppt`. |
+| `feat(clean): reclaim stale AI agent git worktrees` (tw93/Mole#985) | **Addressed** (`gargantua-tppt`). `GitWorktreeScanAdapter` discovers linked worktrees via `.git/worktrees/*` admin metadata (no subprocess) and surfaces prunable/inactive ones as `review`; never touches the primary worktree. |
 | `feat(optimize): prune orphaned Spotlight search rules` (tw93/Mole#1000) | **New candidate** — not covered; optimize-tier, lower value. Tracked as `gargantua-pk0p`. |
 | `refactor(clean): drop scan_external_volumes; never wired into main flow` | **Retires gap #5** (Rule Engine And Schema Gaps). Mole removed external-volume scanning, so it is no longer a parity target. |
 
@@ -221,6 +221,6 @@ Open tail items, not blocking the epic:
 
 - Promotion of the remaining **command-action hold-list** entries (see below) once their UX models the consequence honestly.
 - Remaining **app pack** candidate: Maestro Studio, held back until active-session and project-adjacent paths can be separated.
-- New **upstream-delta** candidates from Mole v1.40.0 (see **Upstream Delta** above): AI-agent git worktree reclaim (`gargantua-tppt`) and orphaned Spotlight search-rule pruning (`gargantua-pk0p`).
+- **Upstream-delta** items from Mole v1.40.0 (see **Upstream Delta** above): AI-agent git worktree reclaim landed (`gargantua-tppt`, `GitWorktreeScanAdapter`); orphaned Spotlight search-rule pruning (`gargantua-pk0p`) remains a candidate.
 - The signature **Confidence Orbit** finally rendering on the Smart Uninstaller picker (`gargantua-bcpw`) is part of this epic's brand surface even though it's not strictly a parity item.
 - Public rule sync to `inceptyon-labs/gargantua-rules` remains the long-running maintenance task that is not gated on parity work.

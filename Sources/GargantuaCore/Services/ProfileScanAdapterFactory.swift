@@ -23,6 +23,10 @@ public enum ProfileScanAdapterFactory {
                     scanRoots: scanRoots,
                     excludedPaths: aiModelExcludedPaths
                 ),
+                GitWorktreeScanAdapter.loadDefaults(
+                    categories: categories,
+                    scanRoots: scanRoots
+                ),
             ]
         )
     }
