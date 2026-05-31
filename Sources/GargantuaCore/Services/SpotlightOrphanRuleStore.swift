@@ -44,16 +44,109 @@ public enum SpotlightRulesStoreError: Error, Sendable, Equatable {
     case synchronizeFailed
 }
 
-/// Resolves installed apps via LaunchServices through `NSWorkspace`.
+/// Resolves whether a bundle id is installed, layering three checks so a stale
+/// LaunchServices database can't make an installed app look "gone" (the false
+/// positive that would wrongly flag a Spotlight rule as orphaned). Mirrors
+/// Mole's `bundle_has_installed_app` (tw93/Mole): LaunchServices → mdfind →
+/// filesystem scan. Any hit means installed; only an all-miss means gone.
 public struct WorkspaceInstalledAppResolver: InstalledAppResolving {
-    public init() {}
+    private let appRoots: [URL]
+    private let fileManager: FileManager
+    private let processRunner: any ProcessRunner
+    private let workspaceLookup: @Sendable (String) -> Bool
+    /// Helper bundle ids (`…​.helper`/`.daemon`/`.agent`/`.xpc`) often belong to
+    /// a parent app; if the parent is installed, the helper is not orphaned.
+    private static let helperSuffixes = [".helper", ".daemon", ".agent", ".xpc"]
 
-    public func isInstalled(bundleID: String) -> Bool {
+    public init(
+        appRoots: [URL] = WorkspaceInstalledAppResolver.defaultAppRoots(),
+        fileManager: FileManager = .default,
+        processRunner: any ProcessRunner = DefaultProcessRunner(),
+        workspaceLookup: @escaping @Sendable (String) -> Bool = WorkspaceInstalledAppResolver.launchServicesLookup
+    ) {
+        self.appRoots = appRoots
+        self.fileManager = fileManager
+        self.processRunner = processRunner
+        self.workspaceLookup = workspaceLookup
+    }
+
+    public static func defaultAppRoots(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [URL] {
+        ["/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            + [homeDirectory.appendingPathComponent("Applications", isDirectory: true)]
+    }
+
+    public static let launchServicesLookup: @Sendable (String) -> Bool = { bundleID in
         #if canImport(AppKit)
             return NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) != nil
         #else
             return false
         #endif
+    }
+
+    public func isInstalled(bundleID: String) -> Bool {
+        guard Self.isSafeBundleID(bundleID) else { return false }
+        return workspaceLookup(bundleID)
+            || mdfindHasMatch(bundleID)
+            || filesystemHasApp(bundleID)
+    }
+
+    /// Allow only well-formed bundle ids so nothing unsafe is interpolated into
+    /// the mdfind query.
+    static func isSafeBundleID(_ bundleID: String) -> Bool {
+        guard !bundleID.isEmpty, bundleID.contains(".") else { return false }
+        return bundleID.allSatisfy { ch in
+            ch.isLetter || ch.isNumber || ch == "." || ch == "-" || ch == "_"
+        }
+    }
+
+    private func mdfindHasMatch(_ bundleID: String) -> Bool {
+        let output = try? processRunner.run(
+            executable: URL(fileURLWithPath: "/usr/bin/mdfind"),
+            arguments: ["kMDItemCFBundleIdentifier == '\(bundleID)'"],
+            timeout: 2,
+            maxCapturedBytes: 64 * 1024
+        )
+        guard let output, output.exitCode == 0 else { return false }
+        return !output.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func filesystemHasApp(_ bundleID: String) -> Bool {
+        let parentID = Self.helperSuffixes.lazy
+            .first { bundleID.hasSuffix($0) }
+            .map { String(bundleID.dropLast($0.count)) }
+
+        for root in appRoots {
+            guard let apps = try? fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for app in apps where app.pathExtension == "app" {
+                // A helper bundle embedded inside a parent app.
+                let embedded = app.appendingPathComponent("Contents/Library/LaunchServices/\(bundleID)")
+                if fileManager.fileExists(atPath: embedded.path) { return true }
+
+                guard let appBundleID = Self.infoPlistBundleID(of: app, fileManager: fileManager) else { continue }
+                if appBundleID == bundleID || (parentID != nil && appBundleID == parentID) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    static func infoPlistBundleID(of app: URL, fileManager: FileManager) -> String? {
+        let plist = app.appendingPathComponent("Contents/Info.plist")
+        guard let data = fileManager.contents(atPath: plist.path),
+              let object = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let dict = object as? [String: Any] else {
+            return nil
+        }
+        return dict["CFBundleIdentifier"] as? String
     }
 }
 
