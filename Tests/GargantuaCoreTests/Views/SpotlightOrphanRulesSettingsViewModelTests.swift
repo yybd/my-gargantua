@@ -4,28 +4,84 @@ import Testing
 @MainActor
 @Suite("SpotlightOrphanRulesSettingsViewModel")
 struct SpotlightOrphanRulesSettingsViewModelTests {
-    @Test("load surfaces the injected orphans and flips hasLoaded")
-    func loadPopulatesOrphans() {
-        let model = SpotlightOrphanRulesSettingsViewModel(findOrphans: {
-            [SpotlightOrphanRule(identifier: "com.gone.app"), SpotlightOrphanRule(identifier: "com.dead.tool")]
-        })
-
-        #expect(model.hasLoaded == false)
-        #expect(model.orphans.isEmpty)
-
-        model.load()
-
-        #expect(model.hasLoaded)
-        #expect(model.orphans.map(\.identifier) == ["com.gone.app", "com.dead.tool"])
+    /// Reader + writer sharing one mutable array, mirroring the real store so a
+    /// prune is reflected by the next read.
+    private final class FakeStore: SpotlightRulesReading, SpotlightRulesWriting, @unchecked Sendable {
+        var ids: [String]
+        init(_ ids: [String]) { self.ids = ids }
+        func enabledRuleIdentifiers() -> [String] { ids }
+        func write(keptIdentifiers: [String]) throws { ids = keptIdentifiers }
     }
 
-    @Test("load with no orphans still flips hasLoaded")
-    func loadWithNoOrphans() {
-        let model = SpotlightOrphanRulesSettingsViewModel(findOrphans: { [] })
+    private struct Resolver: InstalledAppResolving {
+        let installed: Set<String>
+        func isInstalled(bundleID: String) -> Bool { installed.contains(bundleID) }
+    }
 
+    private func model(
+        store: FakeStore,
+        installed: Set<String> = [],
+        gate: @escaping @Sendable () async -> Bool = { true }
+    ) -> SpotlightOrphanRulesSettingsViewModel {
+        SpotlightOrphanRulesSettingsViewModel(
+            scanner: SpotlightOrphanRuleScanner(
+                reader: store,
+                writer: store,
+                resolver: Resolver(installed: installed),
+                canExecuteDestructive: gate
+            )
+        )
+    }
+
+    @Test("load surfaces the orphans and flips hasLoaded")
+    func loadPopulatesOrphans() {
+        let model = model(store: FakeStore(["com.gone.app", "com.apple.tips", "com.docker.docker"]), installed: ["com.docker.docker"])
+
+        #expect(model.hasLoaded == false)
         model.load()
 
         #expect(model.hasLoaded)
+        #expect(model.orphans.map(\.identifier) == ["com.gone.app"])
+    }
+
+    @Test("prune removes orphans, refreshes the list, and reports the count")
+    func pruneRemovesAndRefreshes() async {
+        let store = FakeStore(["com.gone.app", "com.apple.tips", "com.docker.docker"])
+        let model = model(store: store, installed: ["com.docker.docker"])
+        model.load()
+        #expect(model.orphans.map(\.identifier) == ["com.gone.app"])
+
+        await model.prune()
+
         #expect(model.orphans.isEmpty)
+        #expect(model.notice == .removed(1))
+        #expect(store.ids == ["com.apple.tips", "com.docker.docker"])
+        #expect(model.isPruning == false)
+    }
+
+    @Test("a blocked license surfaces a blocked notice and writes nothing")
+    func pruneBlocked() async {
+        let store = FakeStore(["com.gone.app"])
+        let model = model(store: store, installed: [], gate: { false })
+        model.load()
+
+        await model.prune()
+
+        #expect(model.notice == .blocked)
+        #expect(store.ids == ["com.gone.app"])
+        #expect(model.orphans.map(\.identifier) == ["com.gone.app"])
+    }
+
+    @Test("pruning with no orphans reports already-clean")
+    func pruneAlreadyClean() async {
+        let store = FakeStore(["com.apple.tips", "com.docker.docker"])
+        let model = model(store: store, installed: ["com.docker.docker"])
+        model.load()
+        #expect(model.orphans.isEmpty)
+
+        await model.prune()
+
+        #expect(model.notice == .alreadyClean)
+        #expect(store.ids == ["com.apple.tips", "com.docker.docker"])
     }
 }

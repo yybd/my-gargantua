@@ -1,42 +1,71 @@
 import SwiftUI
 
-/// Read-only Storage-tab section listing orphaned `com.apple.Spotlight`
-/// preference rules — dead third-party bundle ids left in System Settings →
-/// Spotlight after an app is uninstalled.
+/// Storage-tab section that lists orphaned `com.apple.Spotlight` preference
+/// rules — dead third-party bundle ids left in System Settings → Spotlight
+/// after an app is uninstalled — and offers a license-gated batch removal.
 ///
-/// This is detection-only for now: it surfaces what `SpotlightOrphanRuleScanner`
-/// finds without offering removal. Wiring the (license-gated) prune into a
-/// destructive action is tracked separately, pending on-device validation of
-/// the live preference shape.
+/// Detection layers LaunchServices → mdfind → filesystem scan so an installed
+/// app is never mistaken for "gone". `System.*` / `com.apple.*` rules are never
+/// touched. Removal rewrites the array through cfprefsd (`SpotlightOrphanRuleScanner.prune()`).
 @MainActor
 final class SpotlightOrphanRulesSettingsViewModel: ObservableObject {
+    enum Notice: Equatable {
+        case removed(Int)
+        case alreadyClean
+        case blocked
+        case failed(String)
+    }
+
     @Published private(set) var orphans: [SpotlightOrphanRule] = []
     @Published private(set) var hasLoaded = false
+    @Published private(set) var isPruning = false
+    @Published private(set) var notice: Notice?
 
-    private let findOrphans: @Sendable () -> [SpotlightOrphanRule]
+    private let scanner: SpotlightOrphanRuleScanner
 
-    init(findOrphans: @escaping @Sendable () -> [SpotlightOrphanRule] = {
-        SpotlightOrphanRuleScanner.live().findOrphans()
-    }) {
-        self.findOrphans = findOrphans
+    init(scanner: SpotlightOrphanRuleScanner = .live()) {
+        self.scanner = scanner
     }
 
     func load() {
-        orphans = findOrphans()
+        orphans = scanner.findOrphans()
         hasLoaded = true
+    }
+
+    func prune() async {
+        isPruning = true
+        defer { isPruning = false }
+        do {
+            let outcome = try await scanner.prune()
+            orphans = scanner.findOrphans()
+            notice = outcome.didWrite ? .removed(outcome.removed.count) : .alreadyClean
+        } catch SpotlightOrphanRuleScanner.PruneError.destructiveActionBlocked {
+            notice = .blocked
+        } catch {
+            notice = .failed(error.localizedDescription)
+        }
     }
 }
 
 struct SpotlightOrphanRulesSettingsSection: View {
     @StateObject private var model = SpotlightOrphanRulesSettingsViewModel()
+    @State private var showingConfirm = false
 
     var body: some View {
         SettingsSectionContainer(
             "Spotlight Rules",
             subtitle: "Uninstalled apps can leave dead entries in System Settings → Spotlight. "
-                + "These are detected for review; removal is not yet available here.",
+                + "Gargantua removes the orphaned ones; system and Apple rules are always kept.",
             count: model.hasLoaded ? model.orphans.count : nil
         ) {
+            if let notice = model.notice {
+                SettingsNoticeRow(
+                    icon: noticeIcon(notice),
+                    message: noticeMessage(notice),
+                    tone: noticeTone(notice)
+                )
+            }
+
             if model.orphans.isEmpty {
                 emptyRow
             } else {
@@ -46,9 +75,38 @@ struct SpotlightOrphanRulesSettingsSection: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
+
+                pruneRow
             }
         }
         .task { model.load() }
+        .sheet(isPresented: $showingConfirm) {
+            DestructiveConfirmSheet(
+                title: "Remove orphaned Spotlight rules?",
+                message: "Gargantua will drop \(model.orphans.count) Spotlight rule(s) whose apps are no longer installed. "
+                    + "System and Apple rules are never touched. Reinstalling an app restores its rule.",
+                confirmLabel: "Remove \(model.orphans.count) rule\(model.orphans.count == 1 ? "" : "s")",
+                onCancel: { showingConfirm = false },
+                onConfirm: {
+                    showingConfirm = false
+                    Task { await model.prune() }
+                }
+            )
+        }
+    }
+
+    private var pruneRow: some View {
+        HStack {
+            Spacer()
+            GargantuaButton(
+                model.isPruning ? "Removing…" : "Remove orphaned rules",
+                icon: "trash",
+                tone: .destructive,
+                isDisabled: model.isPruning,
+                action: { showingConfirm = true }
+            )
+            .help("Remove Spotlight rules for uninstalled apps")
+        }
     }
 
     private var emptyRow: some View {
@@ -89,5 +147,33 @@ struct SpotlightOrphanRulesSettingsSection: View {
         .padding(.vertical, GargantuaSpacing.space2)
         .background(GargantuaColors.surface1)
         .contentShape(Rectangle())
+    }
+
+    private func noticeIcon(_ notice: SpotlightOrphanRulesSettingsViewModel.Notice) -> String {
+        switch notice {
+        case .removed, .alreadyClean: return "checkmark.circle.fill"
+        case .blocked: return "lock.fill"
+        case .failed: return "xmark.octagon.fill"
+        }
+    }
+
+    private func noticeTone(_ notice: SpotlightOrphanRulesSettingsViewModel.Notice) -> SettingsNoticeRow.Tone {
+        switch notice {
+        case .removed, .alreadyClean: return .safe
+        case .blocked, .failed: return .protected
+        }
+    }
+
+    private func noticeMessage(_ notice: SpotlightOrphanRulesSettingsViewModel.Notice) -> String {
+        switch notice {
+        case .removed(let count):
+            return "Removed \(count) orphaned Spotlight rule\(count == 1 ? "" : "s")."
+        case .alreadyClean:
+            return "Spotlight rules are already clean."
+        case .blocked:
+            return "Removing rules needs an active license or trial."
+        case .failed(let message):
+            return message
+        }
     }
 }
