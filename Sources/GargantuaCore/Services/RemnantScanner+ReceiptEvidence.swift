@@ -20,6 +20,7 @@ public extension RemnantScanner {
             expander: self.expander,
             receiptExpander: expander,
             receiptBuilder: builder,
+            spotlightRulesReader: spotlightRulesReader,
             observer: observer
         )
     }

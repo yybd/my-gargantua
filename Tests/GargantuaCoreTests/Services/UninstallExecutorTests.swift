@@ -60,6 +60,36 @@ struct UninstallExecutorTests {
         #expect(result.auditWritten)
     }
 
+    @Test("spotlight-rule remnant is removed via cfprefsd, never trashed")
+    @MainActor
+    func spotlightRuleRoutedToRemover() async throws {
+        let remover = SpyUninstallRemover()
+        let spotlight = SpySpotlightRuleRemover()
+        let file = Self.makeRemnant(id: "prefs", path: "/tmp/prefs.plist", safety: .review)
+        let rule = Self.makeRemnant(
+            id: "spot",
+            category: .spotlightRules,
+            path: "Spotlight rule (com.example.Demo)",
+            safety: .review,
+            size: 0
+        )
+        let executor = UninstallExecutor(
+            remover: remover,
+            processTerminator: SpyProcessTerminator(),
+            auditRecorder: SpyUninstallAuditRecorder(),
+            spotlightRuleRemover: spotlight
+        )
+
+        let result = try await executor.execute(
+            Self.makePlan(remnants: [file, rule]),
+            options: UninstallExecutionOptions(confirmationMethod: .summaryDialog)
+        )
+
+        #expect(spotlight.removed == ["com.example.Demo"])
+        #expect(remover.removedPaths == ["/tmp/prefs.plist"]) // rule was NOT trashed
+        #expect(result.cleanupResult.allSucceeded)
+    }
+
     @Test("writable Applications app bundles stay on ordinary trash path")
     @MainActor
     func writableApplicationsBundleUsesWorkspaceTrash() async throws {

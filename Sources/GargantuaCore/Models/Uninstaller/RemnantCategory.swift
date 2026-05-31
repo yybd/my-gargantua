@@ -43,6 +43,10 @@ public enum RemnantCategory: String, Codable, Sendable, CaseIterable {
     /// Installed helper tools, privileged helpers, kernel extensions.
     case helpers
 
+    /// A `com.apple.Spotlight` `EnabledPreferenceRules` entry for the app — a
+    /// non-file preference remnant removed via cfprefsd, never the Trash.
+    case spotlightRules = "spotlight_rules"
+
     /// Anything the rule author cannot classify into a better bucket.
     case other
 
@@ -57,7 +61,7 @@ public enum RemnantCategory: String, Codable, Sendable, CaseIterable {
         case .supportFiles, .caches, .logs, .savedState, .webData:
             return .safe
         case .preferences, .containers, .groupContainers, .cookies,
-             .launchAgents, .helpers, .other:
+             .launchAgents, .helpers, .spotlightRules, .other:
             return .review
         case .launchDaemons:
             return .protected_

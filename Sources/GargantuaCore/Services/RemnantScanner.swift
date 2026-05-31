@@ -16,6 +16,7 @@ public struct RemnantScanner: UninstallPlanning, Sendable {
     let expander: PathExpander
     let receiptExpander: PackageReceiptExpander?
     let receiptBuilder: ReceiptRemnantBuilder?
+    let spotlightRulesReader: (any SpotlightRulesReading)?
     let observer: (any ScanProgressObserving)?
 
     public init(
@@ -24,6 +25,7 @@ public struct RemnantScanner: UninstallPlanning, Sendable {
         expander: PathExpander = PathExpander(),
         receiptExpander: PackageReceiptExpander? = nil,
         receiptBuilder: ReceiptRemnantBuilder? = nil,
+        spotlightRulesReader: (any SpotlightRulesReading)? = nil,
         observer: (any ScanProgressObserving)? = nil
     ) {
         self.rules = rules
@@ -31,6 +33,7 @@ public struct RemnantScanner: UninstallPlanning, Sendable {
         self.expander = expander
         self.receiptExpander = receiptExpander
         self.receiptBuilder = receiptBuilder
+        self.spotlightRulesReader = spotlightRulesReader
         self.observer = observer
     }
 
@@ -51,6 +54,7 @@ public struct RemnantScanner: UninstallPlanning, Sendable {
         return RemnantScanner(
             rules: load.rules,
             scanRoots: scanRoots ?? PathExpander.defaultScanRoots(),
+            spotlightRulesReader: CFPreferencesSpotlightRulesStore(),
             observer: observer
         )
     }
@@ -65,6 +69,7 @@ public struct RemnantScanner: UninstallPlanning, Sendable {
             expander: expander,
             receiptExpander: receiptExpander,
             receiptBuilder: receiptBuilder,
+            spotlightRulesReader: spotlightRulesReader,
             observer: observer
         )
     }
@@ -104,6 +109,7 @@ public struct RemnantScanner: UninstallPlanning, Sendable {
         }
 
         appendReceiptEvidence(into: &remnants, seenPaths: &seenPaths, for: app)
+        appendSpotlightRuleEvidence(into: &remnants, for: app)
 
         let bundle = includeAppBundle ? Self.makeAppBundleItem(for: app) : nil
         if let bundle {

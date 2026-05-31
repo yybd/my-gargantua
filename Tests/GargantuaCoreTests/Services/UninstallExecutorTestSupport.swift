@@ -65,3 +65,13 @@ final class SpyUninstallAuditRecorder: UninstallAuditRecording {
         entries.append(entry)
     }
 }
+
+final class SpySpotlightRuleRemover: SpotlightRuleRemoving, @unchecked Sendable {
+    private(set) var removed: [String] = []
+    var error: Error?
+
+    func remove(bundleID: String) throws {
+        if let error { throw error }
+        removed.append(bundleID)
+    }
+}

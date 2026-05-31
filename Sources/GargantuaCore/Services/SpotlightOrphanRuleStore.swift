@@ -44,6 +44,26 @@ public enum SpotlightRulesStoreError: Error, Sendable, Equatable {
     case synchronizeFailed
 }
 
+/// Removes a single app's rule from the Spotlight preference store — the
+/// per-app path used by the Smart Uninstaller (vs. the batch orphan prune).
+public protocol SpotlightRuleRemoving: Sendable {
+    func remove(bundleID: String) throws
+}
+
+public struct StoreSpotlightRuleRemover: SpotlightRuleRemoving {
+    private let store: any SpotlightRulesReading & SpotlightRulesWriting
+
+    public init(store: CFPreferencesSpotlightRulesStore = CFPreferencesSpotlightRulesStore()) {
+        self.store = store
+    }
+
+    public func remove(bundleID: String) throws {
+        let ids = store.enabledRuleIdentifiers()
+        guard ids.contains(bundleID) else { return } // already absent — no-op
+        try store.write(keptIdentifiers: ids.filter { $0 != bundleID })
+    }
+}
+
 /// Resolves whether a bundle id is installed, layering three checks so a stale
 /// LaunchServices database can't make an installed app look "gone" (the false
 /// positive that would wrongly flag a Spotlight rule as orphaned). Mirrors

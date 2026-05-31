@@ -146,6 +146,7 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
     private let observer: (any ScanProgressObserving)?
     private let pathExists: @Sendable (String) -> Bool
     private let isWritablePath: @Sendable (String) -> Bool
+    let spotlightRuleRemover: any SpotlightRuleRemoving
 
     public init(
         remover: any UninstallRemoving = WorkspaceUninstallRemover(),
@@ -154,7 +155,8 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
         auditRecorder: any UninstallAuditRecording = AuditWriter(),
         observer: (any ScanProgressObserving)? = nil,
         pathExists: @escaping @Sendable (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
-        isWritablePath: @escaping @Sendable (String) -> Bool = { FileManager.default.isWritableFile(atPath: $0) }
+        isWritablePath: @escaping @Sendable (String) -> Bool = { FileManager.default.isWritableFile(atPath: $0) },
+        spotlightRuleRemover: any SpotlightRuleRemoving = StoreSpotlightRuleRemover()
     ) {
         self.remover = remover
         self.privilegedHelper = privilegedHelper
@@ -163,6 +165,7 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
         self.observer = observer
         self.pathExists = pathExists
         self.isWritablePath = isWritablePath
+        self.spotlightRuleRemover = spotlightRuleRemover
     }
 
     /// Return a copy with a progress observer attached.
@@ -174,7 +177,8 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
             auditRecorder: auditRecorder,
             observer: observer,
             pathExists: pathExists,
-            isWritablePath: isWritablePath
+            isWritablePath: isWritablePath,
+            spotlightRuleRemover: spotlightRuleRemover
         )
     }
 
@@ -206,8 +210,15 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
             )
         }
 
-        let privileged = scanItems.filter(requiresPrivilegedHelper)
-        let ordinary = scanItems.filter { !requiresPrivilegedHelper($0) }
+        // Spotlight-rule remnants are preference entries, not files — partition
+        // them out before the Trash/privileged split so they never reach
+        // `moveToTrash`, then remove them through cfprefsd below.
+        let spotlightRemnants = items.filter { $0.category == .spotlightRules }
+        let fileScanItems = items
+            .filter { $0.category != .spotlightRules }
+            .map { $0.toScanResult() }
+        let privileged = fileScanItems.filter(requiresPrivilegedHelper)
+        let ordinary = fileScanItems.filter { !requiresPrivilegedHelper($0) }
         let authorizedHelper = try preflightPrivilegedHelper(for: privileged, options: options)
 
         var itemResults: [CleanupItemResult] = []
@@ -216,6 +227,8 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
             emit(result: result, item: item)
             itemResults.append(result)
         }
+
+        itemResults.append(contentsOf: removeSpotlightRules(spotlightRemnants))
 
         if let authorizedHelper {
             let request = PrivilegedUninstallRequest(planID: plan.id, scanResults: privileged)
@@ -319,7 +332,7 @@ public final class UninstallExecutor: UninstallExecuting, Sendable {
             && !isWritablePath(item.path)
     }
 
-    private func emit(result: CleanupItemResult, item: ScanResult) {
+    func emit(result: CleanupItemResult, item: ScanResult) {
         guard let observer else { return }
         if result.succeeded {
             observer.didEmit(ScanProgressEvent(

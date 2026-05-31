@@ -118,6 +118,7 @@ extension RemnantCategory {
         case .cookies: "Cookies"
         case .webData: "Web Data"
         case .helpers: "Helpers"
+        case .spotlightRules: "Spotlight Rule"
         case .other: "Other"
         }
     }
