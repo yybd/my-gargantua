@@ -66,10 +66,9 @@ public struct GitWorktreeScanAdapter: ScanAdapter {
         var seen = Set<String>()
         var repos: [URL] = []
         for root in policy.roots {
-            for repo in collectRepositories(in: root, depth: 0) {
-                if seen.insert(GitWorktreeScanPolicy.normalizedPath(repo.path)).inserted {
-                    repos.append(repo)
-                }
+            for repo in collectRepositories(in: root, depth: 0)
+            where seen.insert(GitWorktreeScanPolicy.normalizedPath(repo.path)).inserted {
+                repos.append(repo)
             }
         }
         return repos
