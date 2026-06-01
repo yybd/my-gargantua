@@ -5,7 +5,7 @@
   "commit": "252ab513602162ca5f83279087495291f778adf4",
   "syncedAt": "2026-05-31",
   "bundledRuleCounts": {
-    "cleanup": 288,
+    "cleanup": 287,
     "uninstall": 91,
     "command": 4
   },
@@ -13,6 +13,7 @@
     "cleanup_rules/developer/ai_models.yaml"
   ],
   "pendingFromUpstream": [
+    "cleanup_rules/system/temp.yaml",
     "command_rules/developer/go_clean_cache.yaml",
     "uninstall_rules/app_packs/jetbrains.yaml"
   ]
