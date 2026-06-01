@@ -17,10 +17,10 @@ mode="${1:-all}"
 
 case "$mode" in
     all)
-        filter='RuleSetIntegrationTests|RemnantRuleParserTests|RemnantRuleSetIntegrationTests|CommandActionRuleParserTests|CommandActionRuleSetIntegrationTests|CleanupProfileTests'
+        filter='RuleParserTests|RuleSetIntegration|CleanupProfileTests'
         ;;
     cleanup)
-        filter='RuleParserTests|RuleSetIntegrationTests|CleanupProfileTests'
+        filter='RuleParserTests|RuleSetIntegration|CleanupProfileTests'
         ;;
     uninstall)
         filter='RemnantRuleParserTests|RemnantRuleSetIntegrationTests'
