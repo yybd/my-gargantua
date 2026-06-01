@@ -12,7 +12,7 @@ Gargantua is sold through **Polar.sh** (Merchant of Record). Source stays AGPL-3
 
 ## Why Polar (not FastSpring)
 
-FastSpring gated account activation behind a sales call (contact was on a month's vacation). Polar is self-serve and instant. The FastSpring/AquaticPrime work (including the discovery that Apple removed DSA from `SecKey`, killing FastSpring's CocoaFob preset on modern macOS) is archived in [`fastspring-archived/`](fastspring-archived/) in case we ever revisit.
+FastSpring gated account activation behind a sales call (contact was on a month's vacation). Polar is self-serve and instant. The FastSpring/AquaticPrime work (including the discovery that Apple removed DSA from `SecKey`, killing FastSpring's CocoaFob preset on modern macOS) was removed once Polar shipped; it remains in git history if we ever revisit.
 
 ## Security posture
 

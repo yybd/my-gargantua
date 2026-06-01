@@ -3,3 +3,5 @@ node_modules/
 .healthcheck/
 docs/handoffs/archive/
 docs/scans/
+dist/
+NOTES.md
