@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension SmartUninstallerView {
+
     // MARK: - Single-App Summary
 
     func summaryState(result: UninstallExecutionResult) -> some View {

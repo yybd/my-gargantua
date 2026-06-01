@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension SettingsView {
+
     // MARK: - Updates Section
 
     var updatesSection: some View {

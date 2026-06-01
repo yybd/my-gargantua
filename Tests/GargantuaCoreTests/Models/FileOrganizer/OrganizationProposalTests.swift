@@ -146,7 +146,7 @@ struct UndoEntryCodableTests {
 
     @Test("Array of UndoEntry round-trips (ledger shape)")
     func ledgerRoundTrip() throws {
-        let entries = (0..<3).map { idx in
+        let entries = (0 ..< 3).map { idx in
             UndoEntry(
                 originalURL: URL(fileURLWithPath: "/Users/test/Downloads/\(idx).pdf"),
                 appliedURL: URL(fileURLWithPath: "/Users/test/Downloads/Receipts/\(idx).pdf"),

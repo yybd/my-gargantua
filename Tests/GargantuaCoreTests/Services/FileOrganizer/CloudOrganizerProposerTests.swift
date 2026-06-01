@@ -60,7 +60,7 @@ struct CloudOrganizerProposerTests {
 
     @Test("Big cluster shows sample names + '[N more]' tail")
     func promptShowsRemainder() {
-        let manyItems = (1...25).map { Self.listingItem(id: "X-\($0)", name: "file-\($0).pdf") }
+        let manyItems = (1 ... 25).map { Self.listingItem(id: "X-\($0)", name: "file-\($0).pdf") }
         let prompt = CloudOrganizerProposer.buildPrompt(
             folderName: "Downloads",
             clusters: [Self.cluster(id: "C1", items: manyItems)]
@@ -196,7 +196,7 @@ struct CloudOrganizerProposerTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let count = CloudOrganizerProposer.maxListingSize + 50
-        for index in 0..<count {
+        for index in 0 ..< count {
             let url = dir.appendingPathComponent("file-\(index).bin")
             try Data("x".utf8).write(to: url)
             let modified = Date(timeIntervalSince1970: TimeInterval(1_000_000_000 + index * 86_400))

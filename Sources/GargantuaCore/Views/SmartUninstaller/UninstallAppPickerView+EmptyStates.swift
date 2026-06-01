@@ -23,7 +23,7 @@ extension UninstallAppPickerView {
                 .foregroundStyle(GargantuaColors.ink2)
 
             Text("This usually means Gargantua doesn't have permission to read your Applications folder."
-                 + " Grant access in System Settings, then rescan.")
+                + " Grant access in System Settings, then rescan.")
                 .font(GargantuaFonts.body)
                 .foregroundStyle(GargantuaColors.ink3)
                 .multilineTextAlignment(.center)

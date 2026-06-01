@@ -83,7 +83,7 @@ struct OrganizerClustererTests {
 
     @Test("Sample names are oldest-first, deterministic")
     func sampleNamesAreDeterministic() {
-        let items = (1...5).map { index in
+        let items = (1 ... 5).map { index in
             Self.item(
                 name: "file-\(index).pdf",
                 modified: Date(timeIntervalSince1970: TimeInterval(100 - index))

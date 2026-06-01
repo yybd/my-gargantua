@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 
 extension PersistenceController {
+
     // MARK: - Path Exclusions
 
     /// Fetch all path exclusion entries, sorted by creation date.

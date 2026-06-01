@@ -29,12 +29,12 @@ extension OrganizerStagedPreviewView {
                 .foregroundStyle(GargantuaColors.ink)
             Text(
                 "Pick an engine and a folder. The proposal is reviewed before anything moves — " +
-                "nothing is touched until you click Apply."
+                    "nothing is touched until you click Apply."
             )
-                .font(GargantuaFonts.body)
-                .foregroundStyle(GargantuaColors.ink2)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+            .font(GargantuaFonts.body)
+            .foregroundStyle(GargantuaColors.ink2)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 420)
         }
     }
 
@@ -160,10 +160,10 @@ extension OrganizerStagedPreviewView {
                     .foregroundStyle(GargantuaColors.ink)
                 Text(
                     "Every move is recorded. One click undoes the whole batch — " +
-                    "files return to their original locations, the new subfolders are cleared away."
+                        "files return to their original locations, the new subfolders are cleared away."
                 )
-                    .font(GargantuaFonts.caption)
-                    .foregroundStyle(GargantuaColors.ink2)
+                .font(GargantuaFonts.caption)
+                .foregroundStyle(GargantuaColors.ink2)
             }
         }
         .padding(GargantuaSpacing.space3)

@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension SmartUninstallerView {
+
     // MARK: - Phase Animation Plumbing
 
     /// Stable key for the phase bucket. `.scanning(app)` and

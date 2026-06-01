@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension SettingsView {
+
     // MARK: - Appearance Section
 
     var appearanceSection: some View {

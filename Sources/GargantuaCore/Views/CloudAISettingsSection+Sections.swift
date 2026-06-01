@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension CloudAISettingsSection {
+
     // MARK: - Status header
 
     var statusHeader: some View {

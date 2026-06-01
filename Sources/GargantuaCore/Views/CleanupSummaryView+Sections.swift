@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 extension CleanupSummaryView {
+
     // MARK: - Narrative loading
 
     var narrativeLoadingSection: some View {

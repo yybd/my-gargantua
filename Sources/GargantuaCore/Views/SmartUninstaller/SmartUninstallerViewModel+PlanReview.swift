@@ -1,6 +1,7 @@
 import Foundation
 
 extension SmartUninstallerViewModel {
+
     // MARK: - Plan access
 
     /// The plan currently under review or executing, if any.
