@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import GargantuaCore
 
-// swiftlint:disable line_length
 // Test fixtures are real Claude Code JSONL stream output. Each line *is*
 // one JSON record by spec; breaking them across source lines would corrupt
 // the assertion data.
@@ -259,4 +258,3 @@ struct ClaudeCodeStreamJSONParserTests {
         #expect(summary.hasSuffix("…"))
     }
 }
-// swiftlint:enable line_length

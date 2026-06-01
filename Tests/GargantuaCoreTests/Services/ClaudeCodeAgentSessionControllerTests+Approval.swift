@@ -1,4 +1,3 @@
-// swiftlint:disable line_length
 // Test fixtures embed real Claude Code JSONL stream records inline as
 // raw strings. Each record is one logical JSON line by spec; breaking
 // them across source lines would corrupt the assertion data.
@@ -223,4 +222,3 @@ extension ClaudeCodeAgentSessionControllerTests {
         #expect(gate.status == .approved)
     }
 }
-// swiftlint:enable line_length

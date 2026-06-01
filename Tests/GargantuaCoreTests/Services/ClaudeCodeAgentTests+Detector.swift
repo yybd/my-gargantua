@@ -1,4 +1,3 @@
-// swiftlint:disable line_length
 import Foundation
 import Testing
 @testable import GargantuaCore
@@ -46,4 +45,3 @@ extension ClaudeCodeAgentTests {
         #expect(gate?.summary.contains("2 items") == true)
     }
 }
-// swiftlint:enable line_length

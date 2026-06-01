@@ -1,0 +1,8 @@
+# Test-scoped overrides (merged onto the root .swiftlint.yml).
+#
+# Test fixtures carry long literal data — file paths and full JSON-RPC payloads
+# up to ~900 chars — that is data under test, not code. A numeric cap is
+# meaningless for that, so line_length is disabled for tests. Production code
+# stays at the root config's 150/200.
+disabled_rules:
+  - line_length

@@ -1,4 +1,3 @@
-// swiftlint:disable line_length
 import Foundation
 import Testing
 @testable import GargantuaCore
@@ -110,4 +109,3 @@ extension ClaudeCodeAgentTests {
         #expect(fakeExecutor.didCancel)
     }
 }
-// swiftlint:enable line_length
