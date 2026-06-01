@@ -9,14 +9,21 @@ private let communityRulesRepositoryURL = URL(string: "https://github.com/incept
 /// Bottom section manages the path exclusions persisted via SwiftData.
 public struct RuleViewerView: View {
     let persistence: PersistenceController
+    /// Supplied by the app so the Rules screen can trigger the same Sparkle
+    /// update check that ships new rules. `nil` in previews/standalone use.
+    let updateSettingsViewModel: AppUpdateSettingsViewModel?
 
     @State var categories: [RuleCategory] = []
     @State var selectedCategory: String?
     @State var selectedRuleID: String?
     @State private var isLoading = true
 
-    public init(persistence: PersistenceController) {
+    public init(
+        persistence: PersistenceController,
+        updateSettingsViewModel: AppUpdateSettingsViewModel? = nil
+    ) {
         self.persistence = persistence
+        self.updateSettingsViewModel = updateSettingsViewModel
     }
 
     var selectedCategoryRules: [ScanRule] {
@@ -52,32 +59,61 @@ public struct RuleViewerView: View {
     }
 
     private var headerView: some View {
-        HStack {
-            Text("Rules")
-                .font(GargantuaFonts.heading)
-                .foregroundStyle(GargantuaColors.ink)
+        VStack(alignment: .leading, spacing: GargantuaSpacing.space2) {
+            HStack {
+                Text("Rules")
+                    .font(GargantuaFonts.heading)
+                    .foregroundStyle(GargantuaColors.ink)
 
-            Spacer()
+                Spacer()
 
-            Link(destination: communityRulesRepositoryURL) {
-                Label("Contribute Rules", systemImage: "arrow.up.right.square")
-                    .font(GargantuaFonts.label)
-                    .foregroundStyle(GargantuaColors.accent)
-                    .padding(.horizontal, GargantuaSpacing.space3)
-                    .padding(.vertical, GargantuaSpacing.space2)
-                    .background(GargantuaColors.accent.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
+                Link(destination: communityRulesRepositoryURL) {
+                    Label("Contribute Rules", systemImage: "arrow.up.right.square")
+                        .font(GargantuaFonts.label)
+                        .foregroundStyle(GargantuaColors.accent)
+                        .padding(.horizontal, GargantuaSpacing.space3)
+                        .padding(.vertical, GargantuaSpacing.space2)
+                        .background(GargantuaColors.accent.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
+                }
+                .buttonStyle(.plain)
+                .help("Open the public gargantua-rules repository")
+
+                if isLoading {
+                    AccretionDiskView(activityRate: 18, size: 12, color: GargantuaColors.accretion)
+                }
             }
-            .buttonStyle(.plain)
-            .help("Open the public gargantua-rules repository")
 
-            if isLoading {
-                AccretionDiskView(activityRate: 18, size: 12, color: GargantuaColors.accretion)
-            }
+            rulesCurrencyLine
         }
         .padding(.horizontal, GargantuaSpacing.space6)
         .padding(.top, GargantuaSpacing.space6)
         .padding(.bottom, GargantuaSpacing.space3)
+    }
+
+    /// Passive provenance line: rules are bundled and reviewed per release, so
+    /// new rules arrive with app updates. Wired to the same Sparkle check as the
+    /// menu command rather than implying a live rule fetch.
+    private var rulesCurrencyLine: some View {
+        HStack(spacing: GargantuaSpacing.space2) {
+            Image(systemName: "checkmark.seal")
+                .font(.system(size: 11))
+                .foregroundStyle(GargantuaColors.safe)
+
+            Text("Reviewed and bundled with this release. New rules arrive with app updates.")
+                .font(GargantuaFonts.caption)
+                .foregroundStyle(GargantuaColors.ink3)
+
+            if let updateSettingsViewModel {
+                Button("Check for Updates") {
+                    updateSettingsViewModel.userCheckForUpdates()
+                }
+                .buttonStyle(.plain)
+                .font(GargantuaFonts.caption.weight(.semibold))
+                .foregroundStyle(GargantuaColors.accent)
+                .help("Check for a Gargantua update, which includes the latest reviewed rules")
+            }
+        }
     }
 
     func safetyColor(_ level: SafetyLevel) -> Color {

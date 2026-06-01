@@ -1,0 +1,67 @@
+name: Sync Rules
+
+# Weekly: pull reviewed rules from inceptyon-labs/gargantua-rules into the
+# bundled snapshot and open a PR when upstream has moved. The snapshot still
+# ships only what a human reviews and merges — this just removes the toil of
+# remembering to sync. Run manually any time via the "Run workflow" button.
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Mondays 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Pull upstream rules and open PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync rules if upstream moved
+        id: sync
+        run: |
+          manifest="Sources/GargantuaCore/Resources/rules-sync.json"
+          current="$(python3 -c "import json; print(json.load(open('$manifest'))['commit'])")"
+          upstream="$(git ls-remote https://github.com/inceptyon-labs/gargantua-rules.git refs/heads/main | cut -f1)"
+          echo "current=$current upstream=$upstream"
+          if [ "$current" = "$upstream" ]; then
+            echo "Already synced to ${upstream:0:7} — nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # No Swift toolchain on this runner; the opened PR's own CI (lint +
+          # tests + rules-drift) does the real validation.
+          Scripts/sync-rules.sh apply main --no-validate
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        if: steps.sync.outputs.changed == 'true'
+        # Falls back to the default GITHUB_TOKEN when no PAT is configured. A PAT
+        # (secret RULES_SYNC_PAT) is recommended so the PR triggers the normal CI
+        # checks — PRs opened by GITHUB_TOKEN do not trigger other workflows.
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.RULES_SYNC_PAT || github.token }}
+          branch: chore/rules-sync
+          delete-branch: true
+          commit-message: "chore(rules): sync bundled snapshot from gargantua-rules"
+          title: "chore(rules): sync bundled snapshot from gargantua-rules"
+          body: |
+            Automated weekly pull of reviewed rules from
+            [`inceptyon-labs/gargantua-rules`](https://github.com/inceptyon-labs/gargantua-rules).
+
+            **Review before merging — rules are destructive surface area.**
+
+            - `rules-sync.json` is regenerated with the new upstream commit, date, and counts.
+            - Local-only files (e.g. `cleanup_rules/developer/ai_models.yaml`) are preserved.
+            - Where the bundle was *ahead* of upstream (comment/explanation drift), this pulls
+              upstream's version back in — re-declare such files under `pendingFromUpstream`
+              in `rules-sync.json` if that drift should stand.
+
+            If CI did not run on this PR, no `RULES_SYNC_PAT` secret is configured; close and
+            reopen the PR (or push an empty commit) to trigger checks before merging.

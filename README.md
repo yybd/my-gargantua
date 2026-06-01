@@ -320,6 +320,21 @@ Rules use a **two-repo model**: rule-only PRs (schema, new paths, refinements) g
 
 The full flow (PR → review → snapshot sync → release), schema crib, classification guidance, evidence checklist, and local-testing steps are in [CONTRIBUTING.md](CONTRIBUTING.md#contributing-rules).
 
+### How rules get updated
+
+Because the snapshot is compiled into the binary, there is no separate rule-update channel:
+
+- **Installed app**: new rules arrive with **app updates** over the Sparkle channel. The Rules screen says as much and links to Check for Updates. Updating the app is how you get the latest reviewed rules.
+- **Source build**: pull the latest reviewed rules into your snapshot, then rebuild:
+
+  ```bash
+  Scripts/sync-rules.sh status   # show the synced commit and any drift vs upstream
+  Scripts/sync-rules.sh apply    # pull upstream rules in and regenerate rules-sync.json
+  Scripts/sync-rules.sh check    # CI gate: fail on undeclared drift
+  ```
+
+`Sources/GargantuaCore/Resources/rules-sync.json` records the exact `gargantua-rules` commit the bundled snapshot was reconciled against, plus any declared local-only or pending-upstream divergence. The app surfaces that commit in each rule's Provenance & Trust panel.
+
 ## Development Notes
 
 After cloning, activate the versioned pre-commit hook if you plan to commit:

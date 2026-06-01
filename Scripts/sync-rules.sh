@@ -7,9 +7,13 @@
 #                                commit (honoring localOnly / pendingFromUpstream).
 #                                Exits non-zero on undeclared drift. For CI.
 #   sync-rules.sh status         Print the manifest + drift summary vs upstream HEAD.
-#   sync-rules.sh apply [ref]    Pull upstream rules into the snapshot (never
+#   sync-rules.sh apply [ref] [--no-validate]
+#                                Pull upstream rules into the snapshot (never
 #                                deletes local-only files), regenerate the
 #                                manifest, and run the rule validators.
+#                                --no-validate skips the swift-test validators
+#                                (for CI that has no Swift toolchain; the opened
+#                                PR's own CI validates instead).
 #
 # The snapshot is allowed to diverge from upstream in two bounded ways:
 #   localOnly           - rules authored in this repo, absent upstream (kept).
@@ -103,7 +107,7 @@ cmd_check() {
     commit="$(manifest_field commit)"
     [ -n "$commit" ] || die "manifest has no commit"
     tmp="$(mktemp -d)"; trap "rm -rf '$tmp'" EXIT
-    echo "Checking bundle against $(manifest_field upstream)@${commit:0:7}…"
+    echo "Checking bundle against $(manifest_field upstream)@${commit:0:7}..."
     clone_upstream "$commit" "$tmp"
     drift="$(compute_drift "$tmp")"
     if [ -n "$drift" ]; then
@@ -133,10 +137,21 @@ cmd_status() {
 }
 
 cmd_apply() {
-    local ref="${1:-$(manifest_field ref)}"; [ -n "$ref" ] || ref="main"
+    local ref="" validate=1
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --no-validate) validate=0 ;;
+            -*) die "unknown apply option '$1'" ;;
+            *) ref="$1" ;;
+        esac
+        shift
+    done
+    [ -n "$ref" ] || ref="$(manifest_field ref)"
+    [ -n "$ref" ] || ref="main"
+
     local tmp commit today
     tmp="$(mktemp -d)"; trap "rm -rf '$tmp'" EXIT
-    echo "Cloning $(manifest_field upstream) @ $ref…"
+    echo "Cloning $(manifest_field upstream) @ ${ref}..."
     clone_upstream "$ref" "$tmp"
     commit="$(git -C "$tmp" rev-parse HEAD)"
 
@@ -198,8 +213,12 @@ with open(path, "w") as f:
     f.write("\n")
 PY
 
-    echo "Synced to ${commit:0:7}. Manifest updated. Validating rules…"
-    "$SCRIPT_DIR/validate-rules.sh" all
+    if [ "$validate" -eq 1 ]; then
+        echo "Synced to ${commit:0:7}. Manifest updated. Validating rules..."
+        "$SCRIPT_DIR/validate-rules.sh" all
+    else
+        echo "Synced to ${commit:0:7}. Manifest updated. Skipped local validation (--no-validate)."
+    fi
     echo "Done. Review 'git diff' before committing — synced rule changes are destructive surface area."
 }
 
@@ -208,7 +227,7 @@ main() {
     case "$cmd" in
         check) cmd_check ;;
         status) cmd_status ;;
-        apply) shift; cmd_apply "${1:-}" ;;
+        apply) shift; cmd_apply "$@" ;;
         -h|--help|help)
             sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
             ;;

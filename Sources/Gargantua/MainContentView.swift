@@ -173,7 +173,10 @@ struct MainContentView: View {
                                 )
                             case "rules":
                                 if let persistence {
-                                    RuleViewerView(persistence: persistence)
+                                    RuleViewerView(
+                                        persistence: persistence,
+                                        updateSettingsViewModel: updateSettingsViewModel
+                                    )
                                 } else {
                                     ProgressView()
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
