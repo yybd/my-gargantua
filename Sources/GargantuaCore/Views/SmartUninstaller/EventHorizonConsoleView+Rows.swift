@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension EventHorizonConsoleView {
+
     // MARK: - Rolling log
 
     var rollingLog: some View {

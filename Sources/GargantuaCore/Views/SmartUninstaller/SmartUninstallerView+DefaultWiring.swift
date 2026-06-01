@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension SmartUninstallerView {
+
     // MARK: - Default Wiring
 
     /// Build the production view model with the default scanner, planner, and

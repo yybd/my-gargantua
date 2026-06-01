@@ -1,6 +1,7 @@
 import Foundation
 
 extension SmartUninstallerViewModel {
+
     // MARK: - Single-app execute
 
     /// Run the uninstall. Surfaces execution errors as a `.failed` phase so

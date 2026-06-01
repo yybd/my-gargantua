@@ -122,4 +122,3 @@ public struct SidebarView: View {
         }
     }
 }
-

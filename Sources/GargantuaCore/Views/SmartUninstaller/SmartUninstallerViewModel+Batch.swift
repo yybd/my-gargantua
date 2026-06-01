@@ -1,6 +1,7 @@
 import Foundation
 
 extension SmartUninstallerViewModel {
+
     // MARK: - Batch flow
 
     /// Scan every app the user has checked, build their uninstall plans, and

@@ -1,6 +1,7 @@
 import SwiftUI
 
 extension SmartUninstallerView {
+
     // MARK: - Error State
 
     func errorState(message: String) -> some View {

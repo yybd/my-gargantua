@@ -9,6 +9,7 @@ private struct WeakHolder: @unchecked Sendable {
 }
 
 extension SmartUninstallerViewModel {
+
     // MARK: - Derived: filtered + sorted apps
 
     /// Installed apps filtered by query and system-app toggle, sorted by the
