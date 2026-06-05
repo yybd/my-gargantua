@@ -98,7 +98,7 @@ public enum ProtectedRootPolicyLoadError: Error, LocalizedError {
 
 public enum ProtectedRootPolicyResolver {
     public static func bundledPolicyURL() -> URL? {
-        Bundle.module.url(forResource: "safety_policy", withExtension: nil)?
+        Bundle.gargantuaCoreResources.url(forResource: "safety_policy", withExtension: nil)?
             .appendingPathComponent("protected_roots.yaml")
     }
 }

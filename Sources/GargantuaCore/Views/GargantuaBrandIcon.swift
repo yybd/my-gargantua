@@ -49,7 +49,7 @@ struct GargantuaBrandIcon: View {
     }
 
     private static func loadImageData(resourceName: String) async -> Data? {
-        guard let url = Bundle.module.url(
+        guard let url = Bundle.gargantuaCoreResources.url(
             forResource: resourceName,
             withExtension: "png",
             subdirectory: "Brand/generated"

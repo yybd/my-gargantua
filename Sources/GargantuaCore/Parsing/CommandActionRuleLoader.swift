@@ -113,7 +113,7 @@ public struct CommandActionRuleLoadResult: Sendable {
 ///
 /// Search order mirrors `RuleDirectoryResolver`:
 /// 1. `GARGANTUA_COMMAND_RULES_DIR` env override
-/// 2. `Bundle.module.resourceURL/command_rules`
+/// 2. `Bundle.gargantuaCoreResources.resourceURL/command_rules`
 /// 3. `Bundle.main.resourceURL/command_rules`
 public enum CommandActionRuleDirectoryResolver {
     public static func resolve() -> URL? {
@@ -124,7 +124,7 @@ public enum CommandActionRuleDirectoryResolver {
             if fm.fileExists(atPath: url.path) { return url }
         }
 
-        if let resourceURL = Bundle.module.resourceURL {
+        if let resourceURL = Bundle.gargantuaCoreResources.resourceURL {
             let candidate = resourceURL.appendingPathComponent("command_rules", isDirectory: true)
             if fm.fileExists(atPath: candidate.path) { return candidate }
         }

@@ -23,7 +23,7 @@ public struct GargantuaBrandMark: View {
     }
 
     private static let image: Image? = {
-        guard let url = Bundle.module.url(
+        guard let url = Bundle.gargantuaCoreResources.url(
             forResource: "gargantua-logo",
             withExtension: "png",
             subdirectory: "Brand"

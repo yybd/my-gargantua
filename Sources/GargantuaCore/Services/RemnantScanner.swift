@@ -42,7 +42,7 @@ public struct RemnantScanner: UninstallPlanning, Sendable {
         scanRoots: [URL]? = nil,
         observer: (any ScanProgressObserving)? = nil
     ) throws -> RemnantScanner {
-        guard let url = Bundle.module.url(forResource: "uninstall_rules", withExtension: nil) else {
+        guard let url = Bundle.gargantuaCoreResources.url(forResource: "uninstall_rules", withExtension: nil) else {
             throw RemnantScannerError.rulesDirectoryNotFound
         }
 

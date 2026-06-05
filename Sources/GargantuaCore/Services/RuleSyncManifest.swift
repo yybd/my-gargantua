@@ -36,7 +36,7 @@ public struct RuleSyncManifest: Codable, Sendable, Equatable {
     /// Load the manifest shipped alongside the rules. Returns `nil` for a
     /// source build that never ran the sync script.
     public static func loadBundled() -> RuleSyncManifest? {
-        guard let url = Bundle.module.url(forResource: "rules-sync", withExtension: "json"),
+        guard let url = Bundle.gargantuaCoreResources.url(forResource: "rules-sync", withExtension: "json"),
               let data = try? Data(contentsOf: url) else {
             return nil
         }
