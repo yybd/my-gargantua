@@ -6,6 +6,16 @@ public enum PrivilegedHelperConfiguration {
     public static let appBundleID = "com.inceptyon.gargantua"
     public static let helperBundleID = "com.inceptyon.gargantua.privileged-helper"
     public static let helperPlistName = "\(helperBundleID).plist"
+
+    /// Code signing requirement the privileged helper enforces on incoming XPC
+    /// connections. `anchor apple generic` pins the chain to a Developer ID
+    /// signature; the leaf OU check binds the caller to our Team ID; the
+    /// identifier check binds it to the app bundle. The XPC framework evaluates
+    /// this per connection before the listener delegate runs, so it is race-free
+    /// (no PID-reuse window like a manual SecCodeCopyGuestWithAttributes check).
+    public static let codeSigningRequirement =
+        "identifier \"\(appBundleID)\" and anchor apple generic "
+            + "and certificate leaf[subject.OU] = \"\(teamID)\""
 }
 
 public enum PrivilegedHelperStatus: Sendable, Equatable {

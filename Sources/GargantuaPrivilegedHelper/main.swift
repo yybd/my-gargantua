@@ -1,19 +1,19 @@
 import Foundation
 import GargantuaCore
-import Security
 
 private final class PrivilegedHelperDelegate: NSObject, NSXPCListenerDelegate {
-    private let validator = CallerCodeSignatureValidator()
     private let service = PrivilegedUninstallXPCService()
 
     func listener(
         _ listener: NSXPCListener,
         shouldAcceptNewConnection connection: NSXPCConnection
     ) -> Bool {
-        guard validator.validate(connection: connection) else {
-            HelperLog.write("rejected connection from pid \(connection.processIdentifier)")
-            return false
-        }
+        // Framework-enforced, race-free client authentication: the connection
+        // rejects messages from any peer that doesn't satisfy the requirement,
+        // evaluated against the peer's audit token rather than its PID — so there
+        // is no PID-reuse TOCTOU window like a manual SecCodeCopyGuestWithAttributes
+        // check has. Binds the caller to our app identifier + Developer ID Team ID.
+        connection.setCodeSigningRequirement(PrivilegedHelperConfiguration.codeSigningRequirement)
         HelperLog.write("accepted connection from pid \(connection.processIdentifier)")
         connection.exportedInterface = NSXPCInterface(with: PrivilegedUninstallXPCProtocol.self)
         connection.exportedObject = service
@@ -230,72 +230,6 @@ private final class PrivilegedUninstallXPCService: NSObject, PrivilegedUninstall
 
     private func isDirectChild(_ path: String, of parent: String) -> Bool {
         URL(fileURLWithPath: path).deletingLastPathComponent().path == parent
-    }
-}
-
-private struct CallerCodeSignatureValidator {
-    func validate(connection: NSXPCConnection) -> Bool {
-        var code: SecCode?
-        let attributes = [
-            kSecGuestAttributePid: NSNumber(value: connection.processIdentifier)
-        ] as CFDictionary
-        let copyStatus = SecCodeCopyGuestWithAttributes(
-            nil,
-            attributes,
-            SecCSFlags(rawValue: 0),
-            &code
-        )
-        guard copyStatus == errSecSuccess, let code else {
-            HelperLog.write("SecCodeCopyGuestWithAttributes failed for pid \(connection.processIdentifier): \(copyStatus)")
-            return false
-        }
-
-        var error: Unmanaged<CFError>?
-        let validateStatus = SecCodeCheckValidityWithErrors(
-            code,
-            SecCSFlags(rawValue: 0),
-            nil,
-            &error
-        )
-        if validateStatus != errSecSuccess {
-            let message = error.map { CFErrorCopyDescription($0.takeRetainedValue()) as String? }
-            HelperLog.write("SecCodeCheckValidityWithErrors failed for pid \(connection.processIdentifier): \(validateStatus) \(message ?? "")")
-            return false
-        }
-
-        var staticCode: SecStaticCode?
-        let staticStatus = SecCodeCopyStaticCode(
-            code,
-            SecCSFlags(rawValue: 0),
-            &staticCode
-        )
-        guard staticStatus == errSecSuccess, let staticCode else {
-            HelperLog.write("SecCodeCopyStaticCode failed for pid \(connection.processIdentifier): \(staticStatus)")
-            return false
-        }
-
-        var info: CFDictionary?
-        let infoStatus = SecCodeCopySigningInformation(
-            staticCode,
-            SecCSFlags(rawValue: kSecCSSigningInformation),
-            &info
-        )
-        guard infoStatus == errSecSuccess, let dict = info as? [String: Any] else {
-            HelperLog.write("SecCodeCopySigningInformation failed for pid \(connection.processIdentifier): \(infoStatus)")
-            return false
-        }
-
-        let identifier = dict[kSecCodeInfoIdentifier as String] as? String
-        let teamID = dict[kSecCodeInfoTeamIdentifier as String] as? String
-        guard identifier == PrivilegedHelperConfiguration.appBundleID,
-              teamID == PrivilegedHelperConfiguration.teamID else {
-            HelperLog.write(
-                "caller identity mismatch for pid \(connection.processIdentifier): "
-                    + "identifier=\(identifier ?? "nil") teamID=\(teamID ?? "nil")"
-            )
-            return false
-        }
-        return true
     }
 }
 
