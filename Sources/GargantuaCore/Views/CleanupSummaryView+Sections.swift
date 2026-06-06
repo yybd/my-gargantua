@@ -141,16 +141,24 @@ extension CleanupSummaryView {
             return .automation
         }
 
-        // Ownership failure: distinguish a signed build whose helper just needs
-        // approval from a build that has no embedded helper at all (an AGPL
-        // source build, or a fork signed by another team). `.notFound` means the
-        // launch-daemon plist isn't in the bundle — escalation can never work
-        // here, so point the user at the signed release instead of an approval
-        // toggle that doesn't exist.
-        if SMAppServicePrivilegedHelperInstaller().status() == .notFound {
+        // Ownership failure: the remedy depends on the helper's *actual* state,
+        // not just "permission failed". Telling the user to approve a helper that
+        // is already enabled (and doesn't appear as a separate toggle) is a dead
+        // end — that was the original confusion.
+        switch SMAppServicePrivilegedHelperInstaller().status() {
+        case .notFound:
+            // No embedded helper (AGPL source build or a fork signed by another
+            // team) — point at the signed release, not an approval toggle.
             return .systemUnavailable
+        case .requiresApproval, .notRegistered:
+            // Genuinely needs the user to approve it.
+            return .ownership
+        case .enabled, .unknown:
+            // Helper is active but these items still couldn't be removed — they
+            // are owned by root / another user or in use (e.g. root-owned items
+            // sitting in Trash). No approval will help; show the honest reasons.
+            return .systemResidual
         }
-        return .ownership
     }
 
     var failureSection: some View {
@@ -363,6 +371,9 @@ enum PermissionFailureGuidance {
     /// (an AGPL source build, or a fork signed by another team), so elevated
     /// removal can never work here.
     case systemUnavailable
+    /// The privileged helper is active, but these items still couldn't be
+    /// removed — owned by root / another user, or in use. No approval helps.
+    case systemResidual
 
     var title: String {
         switch self {
@@ -370,6 +381,7 @@ enum PermissionFailureGuidance {
         case .automation: "These items need Automation permission"
         case .ownership: "These items are owned by the system"
         case .systemUnavailable: "This build can't remove system-owned items"
+        case .systemResidual: "Some items couldn't be removed"
         }
     }
 
@@ -387,15 +399,21 @@ enum PermissionFailureGuidance {
             "Files owned by macOS or another user need Gargantua's privileged helper, which only the signed "
                 + "release ships. Install it with Homebrew (brew install --cask gargantua), or build from source "
                 + "with your own Developer ID. Files you own were still cleaned."
+        case .systemResidual:
+            "These are owned by macOS or another user, or are in use by a running app (for example a root-owned "
+                + "app already in the Trash), so they couldn't be removed even with Gargantua's privileged helper. "
+                + "Each item's reason is shown below; the rest were cleaned."
         }
     }
 
-    var buttonLabel: String {
+    /// Some states have no actionable button — the situation is informational.
+    var buttonLabel: String? {
         switch self {
         case .fullDiskAccess: "Open Full Disk Access Settings"
         case .automation: "Open Automation Settings"
         case .ownership: "Open Login Items & Extensions"
         case .systemUnavailable: "Get the Signed Release"
+        case .systemResidual: nil
         }
     }
 
@@ -403,19 +421,22 @@ enum PermissionFailureGuidance {
         switch self {
         case .fullDiskAccess, .automation, .ownership: "gear"
         case .systemUnavailable: "arrow.down.circle"
+        case .systemResidual: "info.circle"
         }
     }
 
-    var actionURL: URL {
+    var actionURL: URL? {
         switch self {
         case .fullDiskAccess:
-            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
+            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
         case .automation:
-            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
+            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
         case .ownership:
-            URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
+            URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")
         case .systemUnavailable:
-            URL(string: "https://github.com/inceptyon-labs/gargantua/releases/latest")!
+            URL(string: "https://github.com/inceptyon-labs/gargantua/releases/latest")
+        case .systemResidual:
+            nil
         }
     }
 }
@@ -442,18 +463,20 @@ struct PermissionFailurePrompt: View {
                 .foregroundStyle(GargantuaColors.ink2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button {
-                openURL(guidance.actionURL)
-            } label: {
-                HStack(spacing: GargantuaSpacing.space1) {
-                    Image(systemName: guidance.buttonIcon)
-                        .font(.system(size: 11))
-                    Text(guidance.buttonLabel)
-                        .font(GargantuaFonts.caption)
+            if let actionURL = guidance.actionURL, let buttonLabel = guidance.buttonLabel {
+                Button {
+                    openURL(actionURL)
+                } label: {
+                    HStack(spacing: GargantuaSpacing.space1) {
+                        Image(systemName: guidance.buttonIcon)
+                            .font(.system(size: 11))
+                        Text(buttonLabel)
+                            .font(GargantuaFonts.caption)
+                    }
+                    .foregroundStyle(GargantuaColors.accent)
                 }
-                .foregroundStyle(GargantuaColors.accent)
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(GargantuaSpacing.space3)
         .background(GargantuaColors.review.opacity(0.08))
