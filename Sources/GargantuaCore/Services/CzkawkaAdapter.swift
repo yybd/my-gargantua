@@ -121,6 +121,7 @@ public struct CzkawkaAdapter: ScanAdapter {
     private let sourceAttribution: SourceAttribution
     private let profile: CleanupProfile?
     private let classifier: SafetyClassifier
+    private let brokenFileVerifier: BrokenFileVerifier
 
     public init(
         binary: URL,
@@ -131,7 +132,8 @@ public struct CzkawkaAdapter: ScanAdapter {
         trustDefaults: CzkawkaTrustDefaults = .builtIn,
         sourceAttribution: SourceAttribution = SourceAttribution(name: "Czkawka"),
         profile: CleanupProfile? = nil,
-        classifier: SafetyClassifier = SafetyClassifier()
+        classifier: SafetyClassifier = SafetyClassifier(),
+        brokenFileVerifier: BrokenFileVerifier = ImageIOBrokenFileVerifier()
     ) {
         self.binary = binary
         self.categories = categories
@@ -142,6 +144,7 @@ public struct CzkawkaAdapter: ScanAdapter {
         self.sourceAttribution = sourceAttribution
         self.profile = profile
         self.classifier = classifier
+        self.brokenFileVerifier = brokenFileVerifier
     }
 
     /// Convenience factory: resolve the binary via `CzkawkaBinaryResolver` and
@@ -313,6 +316,27 @@ public struct CzkawkaAdapter: ScanAdapter {
             lastAccessed = statPath(finding.path).accessed
         }
 
+        // czkawka's `broken` IMAGE check decodes strictly by extension, so a
+        // valid image saved under the wrong extension (e.g. a JPEG named .png)
+        // reads as corrupt. Re-verify by content before trusting that verdict.
+        if category == .brokenFiles {
+            switch brokenFileVerifier.verify(path: finding.path) {
+            case .validMatchingExtension:
+                // Decodes fine and the extension matches — czkawka was wrong.
+                return nil
+            case let .validWrongExtension(formatName, actualExtension):
+                return mislabeledImageResult(
+                    finding: finding,
+                    counter: counter,
+                    size: size,
+                    lastAccessed: lastAccessed,
+                    mismatch: (formatName: formatName, actualExtension: actualExtension)
+                )
+            case .unverified:
+                break
+            }
+        }
+
         let entry = trustDefaults.entry(for: category)
         let tags = finding.groupID.map { ["czkawka_group_\($0)"] } ?? []
 
@@ -365,6 +389,43 @@ public struct CzkawkaAdapter: ScanAdapter {
             tags: base.tags,
             regenerates: base.regenerates,
             regenerateCommand: base.regenerateCommand
+        )
+    }
+
+    /// Build a result for a czkawka-"broken" file that actually decodes fine
+    /// but carries the wrong extension. It isn't corrupt, so it's marked
+    /// `.protected_` (never a deletion candidate) and explained as a rename
+    /// affordance rather than a removal one.
+    private func mislabeledImageResult(
+        finding: CzkawkaFinding,
+        counter: Int,
+        size: Int64,
+        lastAccessed: Date?,
+        mismatch: (formatName: String, actualExtension: String)
+    ) -> ScanResult {
+        let formatName = mismatch.formatName
+        let actualExtension = mismatch.actualExtension
+        let declaredExt = URL(fileURLWithPath: finding.path).pathExtension.lowercased()
+        let explanation = declaredExt.isEmpty
+            ? "Valid \(formatName), not corrupt — it has no extension. "
+                + "Add .\(actualExtension) if you want the name to match."
+            : "Valid \(formatName), not corrupt — it's saved with a .\(declaredExt) extension. "
+                + "Rename to .\(actualExtension) to match the real format."
+
+        return ScanResult(
+            id: "czkawka-\(CzkawkaCategory.brokenFiles.rawValue)-\(counter)",
+            name: finding.path.split(separator: "/").last.map(String.init) ?? finding.path,
+            path: finding.path,
+            size: size,
+            safety: .protected_,
+            confidence: 95,
+            explanation: explanation,
+            source: sourceAttribution,
+            lastAccessed: lastAccessed,
+            category: CzkawkaCategory.brokenFiles.resultCategory,
+            tags: ["extension_mismatch"],
+            regenerates: false,
+            regenerateCommand: nil
         )
     }
 
