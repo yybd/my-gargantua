@@ -154,6 +154,14 @@ extension CleanupProfile {
     /// All built-in profiles.
     public static let builtIn: [CleanupProfile] = [.developer, .light, .deep, .advancedCommands]
 
+    /// Every code-owned profile, used to reconcile persisted (cached) copies with
+    /// the current definitions on bootstrap. Built-ins are code-owned: a change
+    /// here (e.g. dropping a blanket safety override) must reach existing installs
+    /// whose database was seeded by an older build, not stay frozen at first-seed.
+    public static let reconcilableBuiltIns: [CleanupProfile] = [
+        .developer, .light, .deep, .devPurge, .aiModels, .advancedCommands,
+    ]
+
     /// Resolve a cleanup profile for the given active profile ID.
     ///
     /// Searches the provided persisted profiles first (user overrides win),

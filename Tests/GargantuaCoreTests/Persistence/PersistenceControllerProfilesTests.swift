@@ -29,6 +29,50 @@ struct PersistenceControllerProfilesTests {
         #expect(settings.retentionDays == 90)
     }
 
+    @Test("Bootstrap strips a stale override from a persisted built-in profile")
+    func bootstrapReconcilesBuiltIns() throws {
+        let ctrl = try makeController()
+        // Simulate an old build's seeded `deep` profile carrying the black-box
+        // age>7d→safe override that current code no longer ships.
+        let stale = CleanupProfile(
+            id: "deep",
+            name: "Deep Clean",
+            description: "stale",
+            categories: ["system_logs"],
+            safetyOverrides: [
+                SafetyOverride(condition: "age > 7d", safety: .safe, profiles: ["deep"]),
+            ],
+            isCustom: false
+        )
+        try ctrl.saveProfile(stale)
+
+        try ctrl.bootstrap()
+
+        let deep = try ctrl.fetchProfiles().first { $0.id == "deep" }
+        #expect(deep?.safetyOverrides.isEmpty == true)
+    }
+
+    @Test("Bootstrap leaves a user's custom profile overrides intact")
+    func bootstrapPreservesCustomProfiles() throws {
+        let ctrl = try makeController()
+        let custom = CleanupProfile(
+            id: "my-custom",
+            name: "Mine",
+            description: "user profile",
+            categories: ["app_cache"],
+            safetyOverrides: [
+                SafetyOverride(condition: "age > 7d", safety: .safe, profiles: ["my-custom"]),
+            ],
+            isCustom: true
+        )
+        try ctrl.saveProfile(custom)
+
+        try ctrl.bootstrap()
+
+        let fetched = try ctrl.fetchProfiles().first { $0.id == "my-custom" }
+        #expect(fetched?.safetyOverrides.count == 1)
+    }
+
     @Test("Bootstrap is idempotent — does not duplicate data")
     func bootstrapIdempotent() throws {
         let ctrl = try makeController()

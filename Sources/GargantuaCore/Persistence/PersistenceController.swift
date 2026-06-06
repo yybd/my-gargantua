@@ -43,11 +43,26 @@ public final class PersistenceController {
     ///
     /// Safe to call multiple times — existing data is not overwritten.
     public func bootstrap() throws {
-        // Seed built-in profiles if none exist
-        let profileCount = try context.fetchCount(FetchDescriptor<PersistedProfile>())
-        if profileCount == 0 {
+        let existingProfiles = try context.fetch(FetchDescriptor<PersistedProfile>())
+        if existingProfiles.isEmpty {
+            // First launch: seed built-in profiles.
             for profile in CleanupProfile.builtIn {
                 context.insert(PersistedProfile(from: profile))
+            }
+        } else {
+            // Built-in profiles are code-owned; the persisted copy is just a cache.
+            // Reconcile every non-custom profile with its current definition so a
+            // change to a built-in (e.g. removing the black-box `age>Nd→safe`
+            // override) reaches installs whose DB was seeded by an older build,
+            // instead of being frozen forever. User-authored profiles are left as-is.
+            let builtInByID = Dictionary(
+                CleanupProfile.reconcilableBuiltIns.map { ($0.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            for persisted in existingProfiles where !persisted.isCustom {
+                if let current = builtInByID[persisted.profileID] {
+                    persisted.update(from: current)
+                }
             }
         }
 
