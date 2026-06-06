@@ -16,7 +16,7 @@ public extension Bundle {
         let bundleName = "Gargantua_GargantuaCore.bundle"
         let bases = [
             Bundle.main.resourceURL, // shipped .app → Contents/Resources/
-            Bundle.main.bundleURL,   // raw `swift build` / `swift run` → beside the binary
+            Bundle.main.bundleURL, // raw `swift build` / `swift run` → beside the binary
         ]
         for base in bases {
             if let url = base?.appendingPathComponent(bundleName),
@@ -25,14 +25,14 @@ public extension Bundle {
             }
         }
         #if DEBUG
-        // `swift test`: Bundle.main is the xctest host, so the bases above miss;
-        // SwiftPM's generated accessor has a valid build-dir path during local
-        // builds, so it's safe to fall back to here (and only here).
-        return .module
+            // `swift test`: Bundle.main is the xctest host, so the bases above miss;
+            // SwiftPM's generated accessor has a valid build-dir path during local
+            // builds, so it's safe to fall back to here (and only here).
+            return .module
         #else
-        // Unreachable for a correctly assembled .app; return main rather than
-        // crash so call sites' own fallbacks can run.
-        return .main
+            // Unreachable for a correctly assembled .app; return main rather than
+            // crash so call sites' own fallbacks can run.
+            return .main
         #endif
     }()
 }
