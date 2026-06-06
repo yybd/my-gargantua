@@ -9,14 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.2] - 2026-06-05
 
-## [0.2.1] - 2026-06-05
-
-## [0.2.0] - 2026-06-05
-
 ### Added
 
 - **Commercial licensing** (release builds only, via `GARGANTUA_LICENSING=1`). A 14-day trial fronts the destructive-action paths (Deep Clean execute, Smart Uninstaller scrub); scans and previews stay free forever. Licenses are sold one-time through [Polar.sh](https://polar.sh) and activated by pasting a key in `Settings → License` (or via the `gargantua://activate?key=...` deep link). Activation binds to the Mac (up to 3), validates against Polar's public customer-portal API, and is cached locally with a 14-day offline grace window. Source builds remain fully unlocked under AGPL-3.0.
 - **Landing page** under `docs/site/` (static, ready for GitHub Pages) with the screenshot carousel, feature list, and Buy / Download-trial CTAs.
+
+### Fixed
+
+- **Launch crash in packaged builds.** GargantuaCore resources now resolve from the app bundle's `Contents/Resources` instead of SwiftPM's generated `Bundle.module`, whose baked lookup paths don't exist in a shipped `.app` and aborted the app on first render.
+- **Privileged helper client authentication** now uses `setCodeSigningRequirement` (audit-token based), closing the PID-reuse race in the previous manual `SecCode` check.
+
+### Changed
+
+- **Release pipeline** builds from a clean git worktree checked out at the tag, so shipped artifacts always match the tagged commit.
 
 ## [0.1.3] - 2026-05-27
 
