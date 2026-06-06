@@ -57,6 +57,51 @@ extension BackgroundItemActionExecutorTests {
         #expect(outcome.succeeded)
     }
 
+    @Test("Disable tolerates bootout exit 3 (ESRCH — orphaned agent, nothing loaded)")
+    func disableToleratesESRCH() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let launchctl = FakeLaunchctl()
+        // An orphaned system LaunchAgent whose target binary is gone isn't
+        // loaded, so launchctl bootout returns "3: No such process". This is
+        // exactly the realvnc.rvncserver case from the field report.
+        launchctl.setExit(3, forSubcommand: "bootout", stderr: "Boot-out failed: 3: No such process")
+        let (executor, _) = makeExecutor(launchctl: launchctl, auditDir: dir)
+
+        let item = makeItem(
+            source: .systemLaunchAgent,
+            plistPath: "/Library/LaunchAgents/com.realvnc.rvncserver.peruser.plist"
+        )
+        let outcome = await executor.disable(item)
+        #expect(outcome.succeeded)
+    }
+
+    @Test("System-domain disable tolerates bootout exit 3 (ESRCH)")
+    func systemDisableToleratesESRCH() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let helper = FakeHelper()
+        helper.setResponder { request in
+            let exit: Int32 = request.operation == .bootoutDaemon ? 3 : 0
+            return PrivilegedBackgroundItemResponse(
+                id: request.id,
+                succeeded: exit == 0,
+                stderr: exit == 3 ? "Boot-out failed: 3: No such process" : "",
+                exitCode: exit
+            )
+        }
+        let (executor, _) = makeExecutor(helper: helper, auditDir: dir)
+
+        let item = makeItem(
+            source: .launchDaemon,
+            plistPath: "/Library/LaunchDaemons/com.acme.tool.plist"
+        )
+        let outcome = await executor.disable(item)
+
+        #expect(outcome.succeeded)
+        #expect(helper.calls.map(\.operation) == [.bootoutDaemon, .disableDaemon])
+    }
+
     @Test("System-domain disable routes through privileged helper, not launchctl")
     func systemDomainDisableUsesHelper() async throws {
         let dir = try tempDir()

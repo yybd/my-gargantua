@@ -62,6 +62,13 @@ public struct DefaultBackgroundItemActionExecutor: BackgroundItemActionExecuting
         self.now = now
     }
 
+    /// launchctl `bootout` exit codes that mean "the job wasn't loaded" — which
+    /// is fine for a pause/disable, since there's nothing running to tear down
+    /// and we still want to proceed to `disable`. 36 is launchd's "could not
+    /// find specified service"; 3 is `ESRCH` ("No such process"), returned for
+    /// an orphaned agent whose target binary is already gone.
+    static let bootoutNotLoadedCodes: Set<Int32> = [3, 36]
+
     // MARK: - Disable
 
     @MainActor
@@ -82,10 +89,11 @@ public struct DefaultBackgroundItemActionExecutor: BackgroundItemActionExecuting
             // GUI sessions launchctl re-loads it on next login unless we also
             // mark it disabled.
             let bootout = launchctl.run(["bootout", "gui/\(uid)/\(item.label)"])
-            // bootout returns 36 (could not find) when the job isn't loaded,
-            // which is fine for a "disable that wasn't loaded" path. Treat
-            // any non-zero except this as a real failure and surface stderr.
-            let bootoutOK = bootout.succeeded || bootout.exitCode == 36
+            // bootout returns a "not loaded" code (see bootoutNotLoadedCodes)
+            // when there's no running instance to tear down, which is fine for
+            // a "disable that wasn't loaded" path. Treat any other non-zero as
+            // a real failure and surface stderr.
+            let bootoutOK = bootout.succeeded || Self.bootoutNotLoadedCodes.contains(bootout.exitCode)
             let disable = launchctl.run(["disable", "gui/\(uid)/\(item.label)"])
             let succeeded = bootoutOK && disable.succeeded
             // The audit must reflect the step that *actually* dictated the
@@ -111,7 +119,8 @@ public struct DefaultBackgroundItemActionExecutor: BackgroundItemActionExecuting
                     plistPath: item.plistPath
                 )
             )
-            let bootoutOK = bootout.succeeded || bootout.exitCode == 36
+            let bootoutOK = bootout.succeeded
+                || (bootout.exitCode.map(Self.bootoutNotLoadedCodes.contains) ?? false)
             let disable = bootoutOK ? await helper.perform(
                 PrivilegedBackgroundItemRequest(
                     operation: .disableDaemon,
