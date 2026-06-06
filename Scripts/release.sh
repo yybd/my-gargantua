@@ -174,6 +174,9 @@ run mkdir -p "$DIST_DIR"
 "$RELEASE_SCRIPTS_DIR/build.sh"
 "$RELEASE_SCRIPTS_DIR/assemble-app.sh"
 "$RELEASE_SCRIPTS_DIR/sign.sh"
+# Launch the signed app before spending notarization time: a build that crashes
+# on startup (e.g. an unloadable resource bundle) must never reach users.
+"$RELEASE_SCRIPTS_DIR/smoke-test.sh"
 "$RELEASE_SCRIPTS_DIR/notarize.sh" "$APP_BUNDLE"
 "$RELEASE_SCRIPTS_DIR/dmg.sh"
 "$RELEASE_SCRIPTS_DIR/notarize.sh" "$DMG_PATH"
