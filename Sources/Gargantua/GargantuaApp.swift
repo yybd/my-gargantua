@@ -144,7 +144,7 @@ struct GargantuaApp: App {
             category: RemnantCategory.other.rawValue,
             size: 0
         )
-        let request = PrivilegedUninstallRequest(planID: UUID(), items: [item])
+        let request = PrivilegedUninstallRequest(planID: UUID(), items: [item], invokingUserID: getuid())
         let helper = XPCPrivilegedUninstallHelper()
 
         Task { @MainActor in

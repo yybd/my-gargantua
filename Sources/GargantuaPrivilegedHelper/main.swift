@@ -34,7 +34,7 @@ private final class PrivilegedUninstallXPCService: NSObject, PrivilegedUninstall
                 PrivilegedUninstallRequest.self,
                 from: requestData
             )
-            let results = request.items.map(remove)
+            let results = request.items.map { remove($0, invokingUserID: request.invokingUserID) }
             let response = PrivilegedUninstallResponse(items: results)
             reply(try PrivilegedUninstallXPCCodec.encoder.encode(response))
         } catch {
@@ -158,16 +158,18 @@ private final class PrivilegedUninstallXPCService: NSObject, PrivilegedUninstall
         DefaultLaunchctlRunner().run(arguments)
     }
 
-    private func remove(_ item: PrivilegedUninstallItem) -> PrivilegedUninstallItemResult {
+    private func remove(
+        _ item: PrivilegedUninstallItem,
+        invokingUserID: UInt32?
+    ) -> PrivilegedUninstallItemResult {
         do {
             let url = try validate(item)
-            var trashURL: NSURL?
-            try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
+            let trashURL = try moveToTrash(url, invokingUserID: invokingUserID)
             return PrivilegedUninstallItemResult(
                 id: item.id,
                 path: item.path,
                 succeeded: true,
-                trashPath: (trashURL as URL?)?.path
+                trashPath: trashURL.path
             )
         } catch {
             return PrivilegedUninstallItemResult(
@@ -176,6 +178,59 @@ private final class PrivilegedUninstallXPCService: NSObject, PrivilegedUninstall
                 succeeded: false,
                 error: error.localizedDescription
             )
+        }
+    }
+
+    /// Move `url` into the invoking user's Trash and hand them ownership, so the
+    /// removed item is visible and restorable in Finder and they can empty it
+    /// without another auth prompt. Falls back to the root Trash (`trashItem`)
+    /// when the user can't be resolved — same as the prior behavior.
+    private func moveToTrash(_ url: URL, invokingUserID: UInt32?) throws -> URL {
+        guard let uid = invokingUserID, let pw = getpwuid(uid) else {
+            var trashURL: NSURL?
+            try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
+            return (trashURL as URL?) ?? url
+        }
+        let home = String(cString: pw.pointee.pw_dir)
+        let gid = pw.pointee.pw_gid
+        let trashDir = URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent(".Trash", isDirectory: true)
+        try FileManager.default.createDirectory(at: trashDir, withIntermediateDirectories: true)
+
+        let destination = collisionFreeDestination(for: url, in: trashDir)
+        try FileManager.default.moveItem(at: url, to: destination)
+        chownRecursively(destination, uid: uid, gid: gid)
+        return destination
+    }
+
+    private func collisionFreeDestination(for url: URL, in directory: URL) -> URL {
+        let fm = FileManager.default
+        let first = directory.appendingPathComponent(url.lastPathComponent)
+        guard fm.fileExists(atPath: first.path) else { return first }
+
+        let base = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        var index = 1
+        while true {
+            let name = ext.isEmpty ? "\(base) \(index)" : "\(base) \(index).\(ext)"
+            let candidate = directory.appendingPathComponent(name)
+            if !fm.fileExists(atPath: candidate.path) { return candidate }
+            index += 1
+        }
+    }
+
+    /// `lchown` the moved item (and every descendant) to the user. `lchown` does
+    /// not follow symlinks, so a symlink in the tree can't redirect ownership of
+    /// a file outside it.
+    private func chownRecursively(_ url: URL, uid: UInt32, gid: UInt32) {
+        lchown(url.path, uid, gid)
+        guard let enumerator = FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: nil,
+            options: []
+        ) else { return }
+        for case let child as URL in enumerator {
+            lchown(child.path, uid, gid)
         }
     }
 

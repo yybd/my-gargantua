@@ -7,15 +7,22 @@ import Foundation
 public struct PrivilegedUninstallRequest: Codable, Sendable, Equatable {
     public let planID: UUID
     public let items: [PrivilegedUninstallItem]
+    /// UID of the user who initiated the request. The root helper moves removed
+    /// items into this user's Trash (and hands them ownership) so they are
+    /// visible and restorable in Finder, instead of root's hidden Trash. `nil`
+    /// falls back to the root Trash.
+    public let invokingUserID: UInt32?
     public let createdAt: Date
 
     public init(
         planID: UUID,
         items: [PrivilegedUninstallItem],
+        invokingUserID: UInt32? = nil,
         createdAt: Date = Date()
     ) {
         self.planID = planID
         self.items = items
+        self.invokingUserID = invokingUserID
         self.createdAt = createdAt
     }
 }
@@ -125,6 +132,9 @@ extension PrivilegedUninstallRequest {
         self.init(
             planID: planID,
             items: scanResults.map(PrivilegedUninstallItem.init(scanResult:)),
+            // Captured in the app process, so this is the real user's UID; the
+            // helper resolves their home + Trash from it.
+            invokingUserID: getuid(),
             createdAt: createdAt
         )
     }
