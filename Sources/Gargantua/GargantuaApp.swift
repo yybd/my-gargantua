@@ -68,12 +68,11 @@ struct GargantuaApp: App {
     }
 
     private var menuBarScene: some Scene {
-        MenuBarExtra(
-            "G",
-            isInserted: $menuBarWidgetEnabled
-        ) {
+        MenuBarExtra(isInserted: $menuBarWidgetEnabled) {
             GargantuaMenuBarSceneContent(model: menuBarStatusModel)
                 .preferredColorScheme(appearance.colorScheme)
+        } label: {
+            MenuBarStatusLabel(snapshot: menuBarStatusModel.snapshot)
         }
         .menuBarExtraStyle(.window)
     }
