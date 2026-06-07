@@ -136,16 +136,21 @@ struct ScheduledScanServiceTests {
         #expect(installer.unregisterCount == 1)
     }
 
-    @Test("controller skips register when LaunchAgent plist missing from bundle")
-    func controllerSkipsRegisterWhenAgentNotFound() throws {
+    @Test("controller registers from notFound (the agent pre-registration state)")
+    func controllerRegistersWhenAgentNotFound() throws {
         let installer = SpyScheduledScanAgentInstaller(initialStatus: .notFound)
         let controller = ScheduledScanController(installer: installer)
 
-        #expect(try controller.synchronize(configuration: ScheduledScanConfiguration(isEnabled: true)) == .notFound)
-        #expect(installer.registerCount == 0)
+        // `.notFound` is SMAppService's normal pre-registration state for an agent,
+        // not a missing plist — enabling must register rather than bail.
+        #expect(try controller.synchronize(configuration: ScheduledScanConfiguration(isEnabled: true)) == .enabled)
+        #expect(installer.registerCount == 1)
 
-        #expect(try controller.synchronize(configuration: ScheduledScanConfiguration(isEnabled: false)) == .notFound)
-        #expect(installer.unregisterCount == 0)
+        // Disabling from notFound has nothing registered to tear down.
+        let installer2 = SpyScheduledScanAgentInstaller(initialStatus: .notFound)
+        let controller2 = ScheduledScanController(installer: installer2)
+        #expect(try controller2.synchronize(configuration: ScheduledScanConfiguration(isEnabled: false)) == .notFound)
+        #expect(installer2.unregisterCount == 0)
     }
 
     @Test("controller skips register when platform is unavailable")

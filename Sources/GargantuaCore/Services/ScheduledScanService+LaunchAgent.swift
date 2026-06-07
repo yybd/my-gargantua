@@ -7,9 +7,8 @@ import Foundation
 public enum ScheduledScanLaunchAgentConfiguration {
     /// Bundle service label for the scheduler launch agent.
     ///
-    /// Must stay within the app's bundle-identifier domain (`com.inceptyon.gargantua.*`).
-    /// `SMAppService` returns `.notFound` for an agent whose label sits outside the
-    /// registering app's bundle-ID namespace, even when the plist is present and sealed.
+    /// Kept within the app's bundle-identifier domain (`com.inceptyon.gargantua.*`)
+    /// to match the daemon/login-item labels and the plist filename SMAppService loads.
     public static let label = "com.inceptyon.gargantua.scheduler"
     /// Launch-agent plist file name embedded in the app bundle.
     public static let plistName = "\(label).plist"
@@ -121,11 +120,14 @@ public final class ScheduledScanController: @unchecked Sendable {
             switch current {
             case .enabled, .requiresApproval:
                 return current
-            case .notFound, .unavailable:
-                // Plist missing from bundle (unsigned dev build) or platform unsupported.
-                // Surface status without throwing a confusing -67028 codesign error.
+            case .unavailable:
+                // Platform doesn't support SMAppService launch agents (non-macOS).
                 return current
-            case .notRegistered, .unknown:
+            case .notFound, .notRegistered, .unknown:
+                // `.notFound` is SMAppService's normal pre-registration state for an
+                // agent — it reflects system-wide registration, not whether the plist
+                // exists in the bundle (per Apple DTS). Register it like `.notRegistered`.
+                // An unsigned dev build throws -67028 here; the caller surfaces that.
                 return try installer.register()
             }
         } else {

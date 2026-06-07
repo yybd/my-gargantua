@@ -92,7 +92,22 @@ public struct SettingsView: View {
                 PersistenceDiagnostics.logFailure("fetchProfiles", error: error)
                 availableProfiles = CleanupProfile.builtIn.filter { !$0.categories.isEmpty }
             }
-            scheduledScanAgentStatus = ScheduledScanController().status()
+            // Reconcile on appear: if scheduling is enabled but the agent was
+            // never registered (older builds bailed on `.notFound`), register it
+            // now so the status reflects reality instead of a stale pre-register state.
+            let scheduledScanController = ScheduledScanController()
+            if let fetched = settings, fetched.autoScanEnabled {
+                let configuration = ScheduledScanConfiguration(settings: fetched)
+                if configuration.canSynchronizeLaunchAgent {
+                    scheduledScanAgentStatus =
+                        (try? scheduledScanController.synchronize(configuration: configuration))
+                            ?? scheduledScanController.status()
+                } else {
+                    scheduledScanAgentStatus = scheduledScanController.status()
+                }
+            } else {
+                scheduledScanAgentStatus = scheduledScanController.status()
+            }
             launchAtLoginStatus = LaunchAtLoginController().status()
             launchAtLoginEnabled = launchAtLoginStatus == .enabled || launchAtLoginStatus == .requiresApproval
         }

@@ -282,7 +282,8 @@ public enum ScheduledScanAgentStatus: Sendable, Equatable, CustomStringConvertib
     case enabled
     /// macOS requires user approval before enabling the agent.
     case requiresApproval
-    /// The launch-agent plist could not be found.
+    /// SMAppService's pre-registration state for the agent (status 3). Reflects
+    /// system-wide registration, not whether the plist exists in the bundle.
     case notFound
     /// The platform does not support this launch-agent API.
     case unavailable
@@ -308,7 +309,7 @@ public enum ScheduledScanAgentStatus: Sendable, Equatable, CustomStringConvertib
         case .notRegistered: "Not registered"
         case .enabled: "Enabled"
         case .requiresApproval: "Requires approval"
-        case .notFound: "LaunchAgent not found in app bundle"
+        case .notFound: "Not registered"
         case .unavailable: "Unavailable"
         case .unknown(let rawValue): "Unknown (\(rawValue))"
         }
