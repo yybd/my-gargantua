@@ -8,9 +8,15 @@ public struct MenuBarStatusLabel: View {
     }
 
     public var body: some View {
-        Image(systemName: snapshot.pendingAlertCount > 0 ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
-            .symbolRenderingMode(.monochrome)
-            .foregroundStyle(snapshot.pendingAlertCount > 0 ? GargantuaColors.accent : .primary)
+        GargantuaBrandMark()
+            .frame(width: 18, height: 18)
+            .overlay(alignment: .topTrailing) {
+                if snapshot.pendingAlertCount > 0 {
+                    Circle()
+                        .fill(GargantuaColors.accent)
+                        .frame(width: 6, height: 6)
+                }
+            }
             .accessibilityLabel(snapshot.accessibilitySummary)
     }
 }
