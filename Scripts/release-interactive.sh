@@ -179,12 +179,13 @@ if [ -n "$(git status --porcelain)" ]; then
     fi
 fi
 
-# ----- Bump CHANGELOG (generated from Conventional Commits via git-cliff) ----
+# ----- Bump CHANGELOG (Conventional Commits → git-cliff → claude polish) -----
 #
-# git-cliff renders the new version's notes from the Conventional Commit
-# subjects since the last tag (see cliff.toml for type→section mapping) and
-# prepends them, leaving older hand-written sections untouched. Preview pending
-# notes any time with `git cliff --unreleased`.
+# polish-notes.sh builds a deterministic draft from the commits since the last
+# tag (git-cliff, see cliff.toml) and has `claude -p` rewrite it into polished,
+# user-facing notes — falling back to the raw draft if claude is unavailable.
+# The reviewed section is prepended, leaving older sections untouched. Preview
+# pending notes any time with `git cliff --unreleased`.
 
 CHANGELOG="$REPO_ROOT/CHANGELOG.md"
 
@@ -195,14 +196,34 @@ fi
 if grep -q "^## \[${NEW_VERSION}\]" "$CHANGELOG" 2>/dev/null; then
     log "CHANGELOG already has a [${NEW_VERSION}] section; leaving it as-is"
 else
-    log "generating CHANGELOG for ${NEW_VERSION} from commits since v${CURRENT_VERSION}"
-    git cliff --tag "$TAG_NAME" --unreleased --prepend "$CHANGELOG"
+    log "drafting CHANGELOG for ${NEW_VERSION} from commits since v${CURRENT_VERSION}"
+    NOTES_TMP="$(mktemp)"
+    trap 'rm -f "$NOTES_TMP"' EXIT
+    "$REPO_ROOT/Scripts/release/polish-notes.sh" "$TAG_NAME" > "$NOTES_TMP"
 
-    if [ -n "$(git status --porcelain CHANGELOG.md)" ]; then
+    printf '\n%s\n\n' "${DIM}----- proposed ${NEW_VERSION} notes -----${NC}"
+    cat "$NOTES_TMP"
+    printf '\n%s\n' "${DIM}----------------------------------------${NC}"
+
+    if [ -z "$(tr -d '[:space:]' < "$NOTES_TMP")" ]; then
+        warn "no user-facing commits since v${CURRENT_VERSION}; CHANGELOG unchanged"
+    else
+        if ask_yn "Edit these notes before committing?" default-n; then
+            "${EDITOR:-vi}" "$NOTES_TMP"
+        fi
+        # Insert the reviewed section just above the first existing release
+        # heading, so it lands right under the file header.
+        awk -v notesfile="$NOTES_TMP" '
+            /^## \[/ && !done {
+                while ((getline line < notesfile) > 0) print line
+                print ""
+                done = 1
+            }
+            { print }
+        ' "$CHANGELOG" > "$CHANGELOG.tmp" && mv "$CHANGELOG.tmp" "$CHANGELOG"
+
         git add CHANGELOG.md
         git commit -m "docs: update CHANGELOG for ${NEW_VERSION}"
-    else
-        warn "no user-facing commits since v${CURRENT_VERSION}; CHANGELOG unchanged"
     fi
 fi
 
