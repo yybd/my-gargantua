@@ -14,8 +14,13 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 UPDATES_DIR="${SPARKLE_UPDATES_DIR:-$DIST_DIR/sparkle-updates}"
 APPCAST_NAME="$(basename "$SPARKLE_FEED_URL")"
-RELEASE_NOTES_MARKDOWN_PATH="$UPDATES_DIR/$(basename "$DMG_PATH").md"
-RELEASE_NOTES_HTML_PATH="$UPDATES_DIR/$(basename "$DMG_PATH").html"
+# generate_appcast pairs release notes to an archive by the archive's base name
+# with the extension swapped (Gargantua-X.Y.Z.dmg -> Gargantua-X.Y.Z.{md,html}).
+# Naming these "<dmg>.md" instead leaves the appcast item with no <description>,
+# which makes Sparkle's release-notes pane spin forever on the update prompt.
+RELEASE_NOTES_BASENAME="$(basename "$DMG_PATH" .dmg)"
+RELEASE_NOTES_MARKDOWN_PATH="$UPDATES_DIR/$RELEASE_NOTES_BASENAME.md"
+RELEASE_NOTES_HTML_PATH="$UPDATES_DIR/$RELEASE_NOTES_BASENAME.html"
 
 _find_generate_appcast() {
     local candidate

@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-06-06
 
+### Added
+
+- **Quit-and-clean for blocked items.** Deep Clean surfaces items held by a running app with a Quit affordance instead of hiding them, so you can release and remove a cache without hunting down the app yourself.
+- **Recoverable system cleanup.** The privileged helper can remove root-owned items from your own Trash (bounded), and routes removed system items to your Trash rather than root's, so deletions stay recoverable.
+- **View-only items are clearly locked.** Items that can't be safely removed render as locked, non-selectable rows, with removability reconciled at scan time so they're excluded from cleanup up front.
+
+### Changed
+
+- **Stronger trust defaults.** Privileged items are floored at "review" rather than auto-approved, black-box profile-level safety overrides are gone, and the rules-directory override is gated to debug builds.
+- **Version-aware privileged helper.** App updates reload the helper so elevated actions always run the current helper code.
+- **Releases are smoke-tested.** The signed app is launched and verified before notarization so broken builds don't ship.
+
+### Fixed
+
+- **Scheduled scans register correctly.** The background-scan LaunchAgent no longer reports "not found"; `.notFound` is handled as SMAppService's normal pre-registration state and the agent registers as expected.
+- **Browsers are left alone while running.** Browser cache/data rules are skipped when the browser is open, avoiding corruption of an active profile.
+- **Scans skip mount points.** Mounted disk images and network/external volumes are never targeted.
+- **Accurate image health.** Valid images are no longer flagged as corrupt when the file extension misreports the format.
+- **Cleanup robustness.** Already-gone paths count as removed, transient removal failures retry, and delete failures are no longer mislabeled as missing Full Disk Access.
+
 ## [0.2.2] - 2026-06-05
 
 ### Added

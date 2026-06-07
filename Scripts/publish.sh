@@ -181,7 +181,7 @@ fi
 
 DMG_PATH="$REPO_ROOT/dist/Gargantua-${VERSION}.dmg"
 APPCAST_PATH="$REPO_ROOT/dist/sparkle-updates/appcast.xml"
-NOTES_PATH="$REPO_ROOT/dist/sparkle-updates/Gargantua-${VERSION}.dmg.md"
+NOTES_PATH="$REPO_ROOT/dist/sparkle-updates/Gargantua-${VERSION}.md"
 
 if [ "$SKIP_RELEASE" = 1 ]; then
     log "Stopped after build (per --skip-release / --dry-run)."
@@ -203,13 +203,20 @@ fi
 
 # ----- Stage 2: GitHub Release ----------------------------------------------
 
+# The appcast references release notes by URL
+# (.../latest/download/Gargantua-X.Y.Z.md), so the signed notes file must be
+# uploaded as a release asset — not merely used as the release body — or
+# Sparkle's release-notes pane spins forever fetching a missing file.
+RELEASE_ASSETS=("$DMG_PATH" "$APPCAST_PATH" "$NOTES_PATH")
+NOTES_HTML_PATH="$REPO_ROOT/dist/sparkle-updates/Gargantua-${VERSION}.html"
+[ -f "$NOTES_HTML_PATH" ] && RELEASE_ASSETS+=("$NOTES_HTML_PATH")
+
 log "Creating GitHub Release $TAG on $REPO_SLUG..."
 gh release create "$TAG" \
     --repo "$REPO_SLUG" \
     --title "Gargantua $VERSION" \
     --notes-file "$NOTES_PATH" \
-    "$DMG_PATH" \
-    "$APPCAST_PATH"
+    "${RELEASE_ASSETS[@]}"
 
 # ----- Stage 3: Homebrew tap cask -------------------------------------------
 
