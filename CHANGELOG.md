@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-13
+
+### Added
+
+- **User-authored cleanup rules.** Drop custom YAML rules into `~/Library/Application Support/Gargantua/rules/` and they load alongside bundled rules — they survive app updates, appear as a distinct category in the Rule Viewer, and are automatically clamped to `review` safety so a user rule can never be promoted to a destructive `safe` action.
+
+### Fixed
+
+- **Sparkle update notes pane.** The release notes panel no longer spins endlessly on the update prompt — notes are now correctly attached to each release asset and served at a resolvable URL.
+- **Menu bar icon and label.** The menu bar now shows the Gargantua brand mark (with an alert dot when items are pending) and a dynamic label reflecting current alert state, replacing the generic system icon and static text.
+
 ## [0.3.0] - 2026-06-06
 
 ### Added
