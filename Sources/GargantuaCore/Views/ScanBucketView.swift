@@ -166,7 +166,6 @@ public struct ScanBucketListView: View {
                 .onKeyPress(.upArrow) { moveFocus(direction: -1); return .handled }
                 .onKeyPress(.downArrow) { moveFocus(direction: 1); return .handled }
                 .onKeyPress(.space) { toggleFocusedSelection(); return .handled }
-                .onKeyPress(.tab) { jumpToNextGroup(); return .handled }
                 .onKeyPress(.escape) { handleEscape(); return .handled }
                 .onChange(of: focusedItemID) { _, newID in
                     if let newID {

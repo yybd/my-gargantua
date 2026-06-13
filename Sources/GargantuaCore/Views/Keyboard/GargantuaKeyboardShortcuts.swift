@@ -1,4 +1,22 @@
+import AppKit
 import SwiftUI
+
+// MARK: - First-responder probe
+
+/// Whether an editable text field currently holds keyboard focus. Used as a
+/// last-line safety gate so a destructive menu shortcut (⌘⌫) can never fire
+/// while the user is typing in a filter/search field — even on surfaces that
+/// don't publish an accurate `isEditingText` flag. AppKit first-responder state
+/// isn't SwiftUI-observable, so this is checked at action-fire time, not in
+/// `.disabled` (which only re-evaluates when the focused value changes).
+enum KeyboardFocusProbe {
+    @MainActor
+    static func isEditingText() -> Bool {
+        guard let responder = NSApp.keyWindow?.firstResponder else { return false }
+        if let textView = responder as? NSTextView { return textView.isFieldEditor || textView.isEditable }
+        return responder is NSText
+    }
+}
 
 // MARK: - Focused action bus
 
@@ -129,12 +147,22 @@ public struct GargantuaResultsCommands: Commands {
             Button("Clean Selected…") { actions?.cleanSelected?() }
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(actions?.cleanSelected == nil)
-            Button("Move to Trash") { actions?.moveToTrash?() }
-                .keyboardShortcut(.delete, modifiers: .command)
-                .disabled(actions?.moveToTrash == nil)
-            Button("Delete Permanently…") { actions?.deletePermanently?() }
-                .keyboardShortcut(.delete, modifiers: [.command, .shift])
-                .disabled(actions?.deletePermanently == nil)
+            // ⌘⌫ / ⇧⌘⌫ overlap text-editing chords (delete-to-line-start). Gate
+            // on the published flag AND a live first-responder probe so they can
+            // never trash while a filter/search field is focused, even on
+            // surfaces that don't wire `isEditingText`.
+            Button("Move to Trash") {
+                guard !KeyboardFocusProbe.isEditingText() else { return }
+                actions?.moveToTrash?()
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .disabled(actions?.moveToTrash == nil || actions?.isEditingText == true)
+            Button("Delete Permanently…") {
+                guard !KeyboardFocusProbe.isEditingText() else { return }
+                actions?.deletePermanently?()
+            }
+            .keyboardShortcut(.delete, modifiers: [.command, .shift])
+            .disabled(actions?.deletePermanently == nil || actions?.isEditingText == true)
 
             Divider()
 
@@ -190,7 +218,6 @@ public struct KeyboardShortcutsCheatSheet: View {
         ]),
         Section(title: "Navigation", shortcuts: [
             Shortcut(keys: "↑ ↓", action: "Move between items"),
-            Shortcut(keys: "Tab", action: "Jump to the next group"),
             Shortcut(keys: "⌃⌘→", action: "Expand all groups"),
             Shortcut(keys: "⌃⌘←", action: "Collapse all groups"),
             Shortcut(keys: "⌘F", action: "Filter results"),
