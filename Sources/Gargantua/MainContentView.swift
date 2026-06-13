@@ -15,6 +15,8 @@ struct MainContentView: View {
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding = false
     @AppStorage(AIEnginePreference.userDefaultsKey) var preferredAIEngineRawValue = AIEnginePreference.template.rawValue
     @State var sidebarSelection: String? = "dashboard"
+    /// Toggled by ⌘/ (via the Help-menu command) to show the shortcut cheat sheet.
+    @State var showKeyboardCheatSheet = false
     /// Plist path the Process Inventory pane asked Background Items to
     /// pre-select. Set when the user clicks "Open source" on a launchd-backed
     /// process; the Background Items view consumes + clears it once it lands
@@ -248,5 +250,11 @@ struct MainContentView: View {
                 }
             }
         }
+        .overlay {
+            if showKeyboardCheatSheet {
+                KeyboardShortcutsCheatSheet(isPresented: $showKeyboardCheatSheet)
+            }
+        }
+        .focusedSceneValue(\.keyboardCheatSheet, $showKeyboardCheatSheet)
     }
 }

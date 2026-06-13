@@ -2,6 +2,21 @@ import Foundation
 
 extension SmartUninstallerViewModel {
 
+    // MARK: - Batch selection
+
+    /// Add every currently-visible app to the multi-select set. Hidden
+    /// (filtered-out) selections are preserved.
+    public func selectAllVisible() {
+        multiSelected.formUnion(visibleApps.map(\.bundleID))
+    }
+
+    /// Flip selection across the visible apps only — selections hidden by the
+    /// active filter are left untouched.
+    public func invertVisibleSelection() {
+        let visibleIDs = Set(visibleApps.map(\.bundleID))
+        multiSelected = multiSelected.symmetricDifference(visibleIDs)
+    }
+
     // MARK: - Batch flow
 
     /// Scan every app the user has checked, build their uninstall plans, and

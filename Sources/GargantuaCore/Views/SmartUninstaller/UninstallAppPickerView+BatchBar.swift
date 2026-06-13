@@ -48,7 +48,8 @@ extension UninstallAppPickerView {
                     .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
             }
             .buttonStyle(.plain)
-            .keyboardShortcut(.return, modifiers: [.command])
+            // ⌘↩ is owned by the Results menu command (Clean Selected) so
+            // there's a single binding; this button stays click-only.
         }
         .padding(.horizontal, GargantuaSpacing.space5)
         .padding(.vertical, GargantuaSpacing.space3)

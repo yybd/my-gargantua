@@ -99,7 +99,8 @@ struct FileHealthFooter: View {
         }
         .buttonStyle(.plain)
         .disabled(selectedResults.isEmpty)
-        .keyboardShortcut(.delete, modifiers: .command)
+        // ⌘⌫ is owned by the Results menu command (GargantuaResultsCommands) so
+        // there's a single binding; this button stays click-only.
         .accessibilityLabel("Send selected File Health items to Trash")
     }
 }

@@ -162,6 +162,12 @@ public struct ScanBucketListView: View {
                         }
                     }
                 }
+                .focusable(!groups.isEmpty)
+                .onKeyPress(.upArrow) { moveFocus(direction: -1); return .handled }
+                .onKeyPress(.downArrow) { moveFocus(direction: 1); return .handled }
+                .onKeyPress(.space) { toggleFocusedSelection(); return .handled }
+                .onKeyPress(.tab) { jumpToNextGroup(); return .handled }
+                .onKeyPress(.escape) { handleEscape(); return .handled }
                 .onChange(of: focusedItemID) { _, newID in
                     if let newID {
                         withAnimation(.easeInOut(duration: 0.15)) {
@@ -182,6 +188,7 @@ public struct ScanBucketListView: View {
             expandedGroupIDs = Set(groups.map(\.id))
             focusedItemID = nil
         }
+        .focusedSceneValue(\.resultsActions, keyboardActions)
     }
 
     var formattedScanDuration: String {

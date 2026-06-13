@@ -59,6 +59,23 @@ struct UninstallAppPickerView: View {
                 batchActionBar
             }
         }
+        .focusedSceneValue(\.resultsActions, keyboardActions)
+    }
+
+    /// Verbs the app picker publishes to the menu bar. Select-all targets the
+    /// visible apps; Clean Selected (⌘↩) and Rescan (⌘R) are owned here so the
+    /// menu is their single binding (the inline buttons stay click-only).
+    private var keyboardActions: ResultsKeyboardActions {
+        ResultsKeyboardActions(
+            selectAll: viewModel.visibleApps.isEmpty ? nil : { viewModel.selectAllVisible() },
+            deselectAll: viewModel.multiSelected.isEmpty ? nil : { viewModel.clearMultiSelect() },
+            invertSelection: viewModel.visibleApps.isEmpty ? nil : { viewModel.invertVisibleSelection() },
+            cleanSelected: viewModel.multiSelected.isEmpty
+                ? nil
+                : { viewModel.runTracked { await viewModel.startBatchUninstall() } },
+            rescan: { viewModel.runTracked { await viewModel.rescanApps() } },
+            isEditingText: false
+        )
     }
 
     private var header: some View {
@@ -167,7 +184,7 @@ struct UninstallAppPickerView: View {
             .foregroundStyle(GargantuaColors.ink2)
         }
         .buttonStyle(.plain)
-        .keyboardShortcut("r", modifiers: .command)
+        // ⌘R is owned by the Results menu command so there's one binding.
         .accessibilityLabel("Rescan installed apps")
         .help("Re-enumerate every installed app from scratch (⌘R)")
     }

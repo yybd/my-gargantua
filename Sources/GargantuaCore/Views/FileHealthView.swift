@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -141,6 +142,37 @@ public struct FileHealthView: View {
                 }
             }
         }
+        .focusedSceneValue(\.resultsActions, keyboardActions)
+    }
+
+    // MARK: - Keyboard actions
+
+    private var safeSelectableIDs: [String] {
+        results.filter { $0.safety == .safe }.map(\.id)
+    }
+
+    /// Verbs File Health publishes to the menu bar. Expand/collapse and filter
+    /// focus don't apply here (the list is a flat per-tab cluster view), so they
+    /// stay `nil` and their menu items disable on this screen.
+    private var keyboardActions: ResultsKeyboardActions {
+        ResultsKeyboardActions(
+            selectAll: { session.selectedResultIDs = Set(safeSelectableIDs) },
+            deselectAll: session.selectedResultIDs.isEmpty ? nil : { session.selectedResultIDs.removeAll() },
+            invertSelection: {
+                session.selectedResultIDs = Set(safeSelectableIDs).subtracting(session.selectedResultIDs)
+            },
+            moveToTrash: (onSendToTrash != nil && !session.selectedResultIDs.isEmpty)
+                ? { onSendToTrash?() } : nil,
+            revealInFinder: session.selectedResultIDs.isEmpty ? nil : { revealFirstSelectedInFinder() },
+            rescan: onRescan.map { callback in { callback() } },
+            isEditingText: false
+        )
+    }
+
+    private func revealFirstSelectedInFinder() {
+        guard let id = session.selectedResultIDs.first,
+              let item = results.first(where: { $0.id == id }) else { return }
+        NSWorkspace.shared.selectFile(item.path, inFileViewerRootedAtPath: "")
     }
 
     // MARK: - Partial Failure Banner

@@ -168,6 +168,7 @@ public struct DuplicateFinderView: View {
         .onReceive(NotificationCenter.default.publisher(for: .gargantuaPersonalScopeRootsChanged)) { _ in
             personalRoots = Self.loadPersonalRoots(from: persistence)
         }
+        .focusedSceneValue(\.resultsActions, keyboardActions)
     }
 
     // MARK: - Summary Bar
@@ -364,5 +365,46 @@ extension DuplicateFinderView {
         }
         guard selectableByID[id] != nil else { return }
         selectedIDs.insert(id)
+    }
+
+    /// "Select all" for duplicates keeps one copy per group — selecting every
+    /// file would queue the original for the Trash too. Maps to the same
+    /// all-but-first rule the per-group affordance uses.
+    func selectAllButFirstEverywhere() {
+        for group in groups {
+            selectAllButFirst(in: group)
+        }
+    }
+
+    func invertSelection() {
+        selectedIDs = Set(selectableByID.keys).subtracting(selectedIDs)
+    }
+
+    func expandAll() {
+        expandedGroupIDs = Set(groups.map(\.id))
+    }
+
+    func collapseAll() {
+        expandedGroupIDs = []
+    }
+
+    func revealFirstSelectedInFinder() {
+        guard let id = selectedIDs.first, let item = selectableByID[id] else { return }
+        NSWorkspace.shared.selectFile(item.path, inFileViewerRootedAtPath: "")
+    }
+
+    /// Verbs Duplicate Finder publishes to the menu bar.
+    var keyboardActions: ResultsKeyboardActions {
+        ResultsKeyboardActions(
+            selectAll: groups.isEmpty ? nil : { selectAllButFirstEverywhere() },
+            deselectAll: selectedIDs.isEmpty ? nil : { selectedIDs = [] },
+            invertSelection: groups.isEmpty ? nil : { invertSelection() },
+            expandAll: groups.isEmpty ? nil : { expandAll() },
+            collapseAll: groups.isEmpty ? nil : { collapseAll() },
+            moveToTrash: (onSendToTrash != nil && !selectedIDs.isEmpty) ? { triggerTrash() } : nil,
+            revealInFinder: selectedIDs.isEmpty ? nil : { revealFirstSelectedInFinder() },
+            rescan: onRescan.map { callback in { callback() } },
+            isEditingText: false
+        )
     }
 }

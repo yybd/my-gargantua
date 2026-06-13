@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension ScanBucketListView {
@@ -57,5 +58,61 @@ extension ScanBucketListView {
         } else {
             focusedItemID = expandedList.first?.items.first?.id
         }
+    }
+
+    func deselectAll() {
+        selectedIDs = []
+    }
+
+    /// Flip selection across every selectable displayed item (protected,
+    /// view-only, and app-blocked items stay out). Selections of items not
+    /// currently displayed are dropped — invert operates on what's on screen.
+    func invertSelection() {
+        let selectableIDs = displayedResults
+            .filter { $0.safety != .protected_ && viewOnlyReasons[$0.id] == nil && blockedApps[$0.id] == nil }
+            .map(\.id)
+        selectedIDs = Set(selectableIDs).subtracting(selectedIDs)
+    }
+
+    func expandAll() {
+        expandedGroupIDs = Set(groups.map(\.id))
+    }
+
+    func collapseAll() {
+        expandedGroupIDs = []
+    }
+
+    /// Reveal the focused item (or, failing that, the first selected item) in
+    /// Finder. "Show me what you're about to delete" — the trust affordance.
+    func revealFocusedInFinder() {
+        let targetID = focusedItemID ?? selectedIDs.first
+        guard let id = targetID,
+              let item = displayedResults.first(where: { $0.id == id }) else { return }
+        NSWorkspace.shared.selectFile(item.path, inFileViewerRootedAtPath: "")
+    }
+
+    func focusFilterField() {
+        guard hasRefinementTools else { return }
+        showsRefineControls = true
+        isSearchFocused = true
+    }
+
+    /// The verbs this surface publishes to the menu bar. Closures are `nil`'d
+    /// when they can't apply right now (empty selection, no filter tools) so the
+    /// menu items disable themselves and the shortcuts reflect reality.
+    var keyboardActions: ResultsKeyboardActions {
+        ResultsKeyboardActions(
+            selectAll: { selectAllSafe() },
+            deselectAll: selectedIDs.isEmpty ? nil : { deselectAll() },
+            invertSelection: { invertSelection() },
+            expandAll: { expandAll() },
+            collapseAll: { collapseAll() },
+            cleanSelected: (onClean != nil && !selectedIDs.isEmpty) ? { triggerClean() } : nil,
+            revealInFinder: (focusedItemID != nil || !selectedIDs.isEmpty) ? { revealFocusedInFinder() } : nil,
+            rescan: nil,
+            cancel: onCancel.map { callback in { callback() } },
+            focusFilter: hasRefinementTools ? { focusFilterField() } : nil,
+            isEditingText: isSearchFocused
+        )
     }
 }

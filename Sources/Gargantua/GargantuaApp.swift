@@ -64,6 +64,7 @@ struct GargantuaApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesCommand(viewModel: updateController.settingsViewModel)
             }
+            GargantuaResultsCommands()
         }
     }
 
