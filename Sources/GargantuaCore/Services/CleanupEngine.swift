@@ -255,6 +255,19 @@ public final class CleanupEngine: Sendable {
             return await emptyTrashContainer(item: item)
         }
 
+        // TOCTOU guard: the path the scan recorded as a real file could have had
+        // a symlink swapped into its parent chain before the user confirmed the
+        // clean. Both Finder trash and `removeItem` follow symlinked parents, so
+        // refuse rather than risk deleting the link's target. The privileged
+        // path enforces the same rule in the helper.
+        guard SymlinkSwapGuard.isUnchanged(url) else {
+            return CleanupItemResult(
+                item: item,
+                succeeded: false,
+                error: "Skipped (path now resolves through a symlink): \(url.path)"
+            )
+        }
+
         switch method {
         case .trash:
             return await recycleSingle(url: url, item: item)

@@ -156,6 +156,10 @@ public struct DeveloperToolExecutionAdapter: Sendable {
         var removedFiles: [AuditFile] = []
 
         for target in targets where FileManager.default.fileExists(atPath: target.path) {
+            // TOCTOU guard: skip any target whose parent chain now resolves
+            // through a symlink that wasn't there at scan time, so a swapped
+            // path can't redirect removeItem onto an unselected file.
+            guard SymlinkSwapGuard.isUnchanged(target.url) else { continue }
             try FileManager.default.removeItem(at: target.url)
             removedFiles.append(AuditFile(path: target.path, size: target.bytes))
         }

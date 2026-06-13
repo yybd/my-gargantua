@@ -58,6 +58,30 @@ struct CloudAIRedactorTests {
         #expect(!output.contains("very secret material"))
     }
 
+    @Test("Vendor token formats (GitLab, Slack, Stripe, Google) are redacted")
+    func sanitizeRedactsVendorTokens() {
+        let input = """
+        gitlab=glpat-abcdefghijklmnopqrst
+        slack=xoxb-1234567890-abcdefghijkl
+        stripe=sk_live_abcdefghijklmnop1234
+        gmaps=AIzaabcdefghijklmnopqrstuvwxyz012345678
+        gauth=ya29.abcdefghijklmnopqrstuvwxyz
+        """
+
+        let output = CloudAIRedactor.sanitizeContent(input)
+
+        #expect(output.contains("gitlab=[REDACTED_GITLAB_TOKEN]"))
+        #expect(output.contains("slack=[REDACTED_SLACK_TOKEN]"))
+        #expect(output.contains("stripe=[REDACTED_STRIPE_KEY]"))
+        #expect(output.contains("gmaps=[REDACTED_GOOGLE_API_KEY]"))
+        #expect(output.contains("gauth=[REDACTED_GOOGLE_OAUTH_TOKEN]"))
+        #expect(!output.contains("glpat-abcdefghijklmnopqrst"))
+        #expect(!output.contains("xoxb-1234567890-abcdefghijkl"))
+        #expect(!output.contains("sk_live_abcdefghijklmnop1234"))
+        #expect(!output.contains("AIzaabcdefghijklmnopqrstuvwxyz012345678"))
+        #expect(!output.contains("ya29.abcdefghijklmnopqrstuvwxyz"))
+    }
+
     @Test("Tabs and newlines are preserved as whitespace and collapsed")
     func sanitizePreservesTabAndNewline() {
         #expect(CloudAIRedactor.sanitizeContent("a\tb\nc") == "a b c")

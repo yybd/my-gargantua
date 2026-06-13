@@ -116,6 +116,11 @@ public enum CloudAIRedactor {
             (#"(?i)\b(api[_-]?key|access[_-]?token|auth[_-]?token|secret|password)\s*[:=]\s*["']?[^"',\s;]+"#, "$1=[REDACTED]"),
             (#"\bAKIA[0-9A-Z]{16}\b"#, "[REDACTED_AWS_ACCESS_KEY]"),
             (#"\bgh[pousr]_[A-Za-z0-9_]{20,}\b"#, "[REDACTED_GITHUB_TOKEN]"),
+            (#"\bglpat-[A-Za-z0-9_-]{20,}\b"#, "[REDACTED_GITLAB_TOKEN]"),
+            (#"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"#, "[REDACTED_SLACK_TOKEN]"),
+            (#"\b(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}\b"#, "[REDACTED_STRIPE_KEY]"),
+            (#"\bAIza[0-9A-Za-z_-]{35}\b"#, "[REDACTED_GOOGLE_API_KEY]"),
+            (#"\bya29\.[0-9A-Za-z_-]{20,}\b"#, "[REDACTED_GOOGLE_OAUTH_TOKEN]"),
             (#"\bsk-[A-Za-z0-9_-]{20,}\b"#, "[REDACTED_API_KEY]"),
         ]
 
