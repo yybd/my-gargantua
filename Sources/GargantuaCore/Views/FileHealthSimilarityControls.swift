@@ -4,6 +4,7 @@ struct FileHealthSimilarityControls: View {
     let tab: FileHealthCategoryTab
     let filteredCount: Int
     @Binding var filterText: String
+    var filterFocus: FocusState<Bool>.Binding
     @Binding var clusterSuggestions: [String: [String: FileHealthClusterSuggestion]]
     @Binding var suggestingTabIDs: Set<String>
     @Binding var attemptedSuggestionTabIDs: Set<String>
@@ -31,6 +32,7 @@ struct FileHealthSimilarityControls: View {
                 .textFieldStyle(.plain)
                 .font(GargantuaFonts.body)
                 .foregroundStyle(GargantuaColors.ink)
+                .focused(filterFocus)
 
                 if filterIsActive {
                     Button {

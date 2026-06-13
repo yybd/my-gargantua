@@ -7,6 +7,7 @@ import SwiftUI
 /// as the sort control. Tapping a row begins planning.
 struct UninstallAppPickerView: View {
     @Bindable var viewModel: SmartUninstallerViewModel
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,6 +66,7 @@ struct UninstallAppPickerView: View {
     /// Verbs the app picker publishes to the menu bar. Select-all targets the
     /// visible apps; Clean Selected (⌘↩) and Rescan (⌘R) are owned here so the
     /// menu is their single binding (the inline buttons stay click-only).
+    /// `isEditingText` tracks the search field so ⌘A/⌘I fall through while typing.
     private var keyboardActions: ResultsKeyboardActions {
         ResultsKeyboardActions(
             selectAll: viewModel.visibleApps.isEmpty ? nil : { viewModel.selectAllVisible() },
@@ -74,7 +76,8 @@ struct UninstallAppPickerView: View {
                 ? nil
                 : { viewModel.runTracked { await viewModel.startBatchUninstall() } },
             rescan: { viewModel.runTracked { await viewModel.rescanApps() } },
-            isEditingText: false
+            focusFilter: { isSearchFocused = true },
+            isEditingText: isSearchFocused
         )
     }
 
@@ -96,7 +99,7 @@ struct UninstallAppPickerView: View {
 
     private var toolbar: some View {
         HStack(spacing: GargantuaSpacing.space3) {
-            UninstallPickerSearchField(text: $viewModel.query)
+            UninstallPickerSearchField(text: $viewModel.query, focus: $isSearchFocused)
                 .frame(maxWidth: 320)
 
             Toggle(isOn: $viewModel.showSystemApps) {

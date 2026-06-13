@@ -43,6 +43,7 @@ enum UninstallPickerOrbit {
 
 struct UninstallPickerSearchField: View {
     @Binding var text: String
+    var focus: FocusState<Bool>.Binding
 
     var body: some View {
         HStack(spacing: GargantuaSpacing.space2) {
@@ -54,6 +55,7 @@ struct UninstallPickerSearchField: View {
                 .textFieldStyle(.plain)
                 .font(GargantuaFonts.body)
                 .foregroundStyle(GargantuaColors.ink)
+                .focused(focus)
 
             if !text.isEmpty {
                 Button {

@@ -4,6 +4,7 @@ import SwiftUI
 struct FileHealthClusterList: View {
     let tab: FileHealthCategoryTab
     @Binding var filterText: String
+    var filterFocus: FocusState<Bool>.Binding
     let session: FileHealthSessionState
     let onExplain: ((ScanResult) -> Void)?
     @Binding var clusterSuggestions: [String: [String: FileHealthClusterSuggestion]]
@@ -25,6 +26,7 @@ struct FileHealthClusterList: View {
                 tab: tab,
                 filteredCount: filtered.count,
                 filterText: $filterText,
+                filterFocus: filterFocus,
                 clusterSuggestions: $clusterSuggestions,
                 suggestingTabIDs: $suggestingTabIDs,
                 attemptedSuggestionTabIDs: $attemptedSuggestionTabIDs,

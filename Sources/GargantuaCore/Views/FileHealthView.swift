@@ -27,6 +27,7 @@ public struct FileHealthView: View {
 
     @State private var selectedTabID: String?
     @State private var filterText: String = ""
+    @FocusState private var isFilterFocused: Bool
     @State private var clusterSuggestions: [String: [String: FileHealthClusterSuggestion]] = [:]
     @State private var suggestingTabIDs: Set<String> = []
     /// Tab ids whose Suggest call has run at least once. Lets the UI tell
@@ -123,6 +124,7 @@ public struct FileHealthView: View {
                     FileHealthClusterList(
                         tab: tab,
                         filterText: $filterText,
+                        filterFocus: $isFilterFocused,
                         session: session,
                         onExplain: onExplain,
                         clusterSuggestions: $clusterSuggestions,
@@ -151,9 +153,10 @@ public struct FileHealthView: View {
         results.filter { $0.safety == .safe }.map(\.id)
     }
 
-    /// Verbs File Health publishes to the menu bar. Expand/collapse and filter
-    /// focus don't apply here (the list is a flat per-tab cluster view), so they
-    /// stay `nil` and their menu items disable on this screen.
+    /// Verbs File Health publishes to the menu bar. Expand/collapse don't apply
+    /// here (a flat per-tab cluster view), so they stay `nil` and disable on this
+    /// screen. `isEditingText` tracks the path-filter field so ⌘A/⌘I fall through
+    /// to it while typing.
     private var keyboardActions: ResultsKeyboardActions {
         ResultsKeyboardActions(
             selectAll: { session.selectedResultIDs = Set(safeSelectableIDs) },
@@ -165,7 +168,8 @@ public struct FileHealthView: View {
                 ? { onSendToTrash?() } : nil,
             revealInFinder: session.selectedResultIDs.isEmpty ? nil : { revealFirstSelectedInFinder() },
             rescan: onRescan.map { callback in { callback() } },
-            isEditingText: false
+            focusFilter: { isFilterFocused = true },
+            isEditingText: isFilterFocused
         )
     }
 
