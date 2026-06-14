@@ -206,7 +206,12 @@ struct MainContentView: View {
                             case "devTools":
                                 DeveloperToolsView(session: devToolsSession)
                             case "agentSessions":
-                                ClaudeCodeAgentView()
+                                switch AIEngineAssignments.engine(for: .maintenance) {
+                                case .codex:
+                                    CodexAgentView()
+                                default:
+                                    ClaudeCodeAgentView()
+                                }
                             case "settings":
                                 if let persistence {
                                     SettingsView(

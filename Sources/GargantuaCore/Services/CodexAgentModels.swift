@@ -20,21 +20,28 @@ public struct CodexAgentConfiguration: Codable, Sendable, Equatable {
     public var cliPath: String
     /// Optional OpenAI model identifier. Empty string defers to CLI default.
     public var selectedModel: String
+    /// Whether a one-shot Codex maintenance audit runs after each scheduled
+    /// scan. Off by default — unattended `codex exec` runs bill the user's
+    /// account, so opting in is explicit.
+    public var runAfterScheduledScans: Bool
 
     public init(
         isEnabled: Bool = false,
         cliPath: String = "",
-        selectedModel: String = Self.defaultSelectedModel
+        selectedModel: String = Self.defaultSelectedModel,
+        runAfterScheduledScans: Bool = false
     ) {
         self.isEnabled = isEnabled
         self.cliPath = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
         self.selectedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.runAfterScheduledScans = runAfterScheduledScans
     }
 
     private enum CodingKeys: String, CodingKey {
         case isEnabled
         case cliPath
         case selectedModel
+        case runAfterScheduledScans
     }
 
     public init(from decoder: Decoder) throws {
@@ -42,7 +49,8 @@ public struct CodexAgentConfiguration: Codable, Sendable, Equatable {
         self.init(
             isEnabled: try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false,
             cliPath: try c.decodeIfPresent(String.self, forKey: .cliPath) ?? "",
-            selectedModel: try c.decodeIfPresent(String.self, forKey: .selectedModel) ?? Self.defaultSelectedModel
+            selectedModel: try c.decodeIfPresent(String.self, forKey: .selectedModel) ?? Self.defaultSelectedModel,
+            runAfterScheduledScans: try c.decodeIfPresent(Bool.self, forKey: .runAfterScheduledScans) ?? false
         )
     }
 
@@ -51,6 +59,7 @@ public struct CodexAgentConfiguration: Codable, Sendable, Equatable {
         try c.encode(isEnabled, forKey: .isEnabled)
         try c.encode(cliPath, forKey: .cliPath)
         try c.encode(selectedModel, forKey: .selectedModel)
+        try c.encode(runAfterScheduledScans, forKey: .runAfterScheduledScans)
     }
 
     /// Tilde-expanded CLI path, or `nil` when no path is configured.

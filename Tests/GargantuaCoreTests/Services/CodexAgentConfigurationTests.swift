@@ -64,6 +64,22 @@ struct CodexAgentConfigurationTests {
         #expect(decoded.isEnabled == true)
         #expect(decoded.cliPath.isEmpty)
         #expect(decoded.selectedModel.isEmpty)
+        // Legacy JSON predates the scheduled-audit opt-in: defaults to off.
+        #expect(decoded.runAfterScheduledScans == false)
+    }
+
+    @Test("runAfterScheduledScans round-trips through Codable")
+    func scheduledAuditOptInRoundTrips() throws {
+        let original = CodexAgentConfiguration(
+            isEnabled: true,
+            cliPath: "/opt/bin/codex",
+            selectedModel: "gpt-5-codex",
+            runAfterScheduledScans: true
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(CodexAgentConfiguration.self, from: data)
+        #expect(decoded.runAfterScheduledScans)
+        #expect(decoded == original)
     }
 
     @Test("Store load + save round-trip via UserDefaults")

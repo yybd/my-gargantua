@@ -32,6 +32,10 @@ struct CodexAgentSettingsSection: View {
                     )
                 }
                 modelPickerRow
+
+                Divider().overlay(GargantuaColors.border)
+
+                scheduledAuditToggle
             } else {
                 Text("Enable to set the CLI path and model.")
                     .font(GargantuaFonts.caption)
@@ -123,6 +127,22 @@ struct CodexAgentSettingsSection: View {
             )
             .help("Save CLI path")
         }
+    }
+
+    private var scheduledAuditToggle: some View {
+        Toggle(isOn: Binding(
+            get: { configuration.runAfterScheduledScans },
+            set: {
+                configuration.runAfterScheduledScans = $0
+                saveConfiguration()
+            }
+        )) {
+            SettingsRowText(
+                title: "Run scheduled audits",
+                detail: "Completed scheduled scans can start a one-shot read-only Codex maintenance report. Bills your Codex account."
+            )
+        }
+        .toggleStyle(.switch)
     }
 
     // MARK: - Actions

@@ -17,7 +17,7 @@ public final class ScheduledScanRunner {
             scanner: NativeScheduledScanScanner(),
             notifier: defaultScheduledScanNotifier(),
             powerStateProvider: SystemScheduledScanPowerStateProvider(),
-            agentAuditHook: ClaudeCodeScheduledAgentAuditHook(),
+            agentAuditHook: MaintenanceEngineAuditHook(),
             now: Date.init
         )
     }

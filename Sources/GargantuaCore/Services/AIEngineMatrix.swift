@@ -89,9 +89,9 @@ public enum AIUseCase: String, CaseIterable, Identifiable, Sendable {
         case .deeperExplain:
             return [.cloud, .claudeCode, .codex]
         case .maintenance:
-            // Codex maintenance isn't wired yet (gargantua-jj9z); Claude Code
-            // is the only engine that actually runs maintenance today.
-            return [.claudeCode]
+            // Claude Code drives the interactive MCP agent; Codex runs a
+            // one-shot read-only `codex exec` audit. Both can serve maintenance.
+            return [.claudeCode, .codex]
         }
     }
 
@@ -110,8 +110,6 @@ public enum AIUseCase: String, CaseIterable, Identifiable, Sendable {
             return "On-device engines can’t run agentic tasks."
         case .maintenance where engine == .cloud:
             return "The hosted API answers prompts but can’t run tools or take actions."
-        case .maintenance where engine == .codex:
-            return "Agentic Codex maintenance is coming soon."
         default:
             return "Not available for this job."
         }
