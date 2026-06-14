@@ -42,9 +42,12 @@ public struct RemovabilityReconciler: Sendable {
     }
 
     public func removability(for result: ScanResult) -> Removability {
-        // Command actions (e.g. `go clean -cache`) and Ollama model deletions
-        // are not path removals; the allowlist/deny-list don't apply.
-        if result.isCommandAction || result.isOllamaModel { return .removable }
+        // Command actions (e.g. `go clean -cache`), Ollama model deletions, and
+        // HF revision pruning aren't plain path removals of `result.path`; the
+        // allowlist/deny-list don't apply.
+        if result.isCommandAction || result.isOllamaModel || result.isHuggingFaceRevisionPrune {
+            return .removable
+        }
 
         // Global deny-list wins over everything.
         if let reason = protectedRoots.protectionReason(for: URL(fileURLWithPath: result.path)) {

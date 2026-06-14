@@ -71,7 +71,7 @@ public final class CleanupEngine: Sendable {
     /// Existence probe used to detect items that vanished between scan and clean
     /// (e.g. a browser that wiped its cache on quit). Injectable so tests that
     /// exercise the trash mover with synthetic paths aren't short-circuited.
-    private let fileExists: @Sendable (String) -> Bool
+    let fileExists: @Sendable (String) -> Bool
 
     /// - Parameter privilegedHelper: pass `XPCPrivilegedUninstallHelper()` from
     ///   interactive flows to recover root-owned items that POSIX `EPERM`
@@ -182,6 +182,7 @@ public final class CleanupEngine: Sendable {
             !result.succeeded
                 && !result.item.isCommandAction
                 && !result.item.isOllamaModel
+                && !result.item.isHuggingFaceRevisionPrune
                 && CleanupFailureClassifier.isElevatable(result.error)
         }
         guard !escalatable.isEmpty else { return results }
@@ -249,6 +250,12 @@ public final class CleanupEngine: Sendable {
         // GC'd by the daemon), never by trashing the manifest path.
         if item.isOllamaModel {
             return await ollamaModelRunner.run(item: item)
+        }
+
+        // Hugging Face revision pruning removes a recomputed set of detached
+        // snapshot dirs + newly-orphaned blobs, not the repo path itself.
+        if item.isHuggingFaceRevisionPrune {
+            return await pruneHuggingFaceRevisions(item: item, method: method)
         }
 
         // Already gone. Apps like browsers wipe and recreate their cache on quit,
@@ -320,7 +327,7 @@ public final class CleanupEngine: Sendable {
     /// Retries a transient hold (e.g. a browser's helper still releasing the
     /// cache right after the user quit it via the Quit button).
     @MainActor
-    private func recycleSingle(url: URL, item: ScanResult) async -> CleanupItemResult {
+    func recycleSingle(url: URL, item: ScanResult) async -> CleanupItemResult {
         var lastError = "unknown error"
         for attempt in 1 ... Self.maxRemovalAttempts {
             do {
@@ -347,7 +354,7 @@ public final class CleanupEngine: Sendable {
     /// walks the directory tree — large dev caches can take several seconds
     /// per item, which froze the UI (beach ball) every time the agent's
     /// modal confirmed a "Delete Permanently" cleanup.
-    private func deleteSingle(url: URL, item: ScanResult) async -> CleanupItemResult {
+    func deleteSingle(url: URL, item: ScanResult) async -> CleanupItemResult {
         let pathToRemove = url
         var lastError = "unknown error"
         for attempt in 1 ... Self.maxRemovalAttempts {

@@ -70,6 +70,56 @@ struct HuggingFaceCacheInventoryTests {
         let cache = try HFFixture(createHub: false)
         #expect(HuggingFaceCacheInventory(hubRoots: [cache.hub]).load().isEmpty)
     }
+
+    @Test("detached revisions surface only the blobs they alone hold")
+    func staleRevisionAccounting() throws {
+        let cache = try HFFixture()
+        let repo = try cache.staleRepo()
+
+        let stale = try #require(HuggingFaceCacheInventory.staleRevisions(forRepoAt: repo))
+        #expect(stale.detachedRevisionCount == 1)
+        #expect(stale.reclaimableBytes == 700) // oldOnly; shared stays (kept refs it)
+        #expect(stale.removablePaths.contains { $0.hasSuffix("snapshots/revOLD") })
+        #expect(stale.removablePaths.contains { $0.hasSuffix("blobs/oldOnly") })
+        #expect(!stale.removablePaths.contains { $0.hasSuffix("blobs/shared") })
+        #expect(!stale.removablePaths.contains { $0.hasSuffix("blobs/newOnly") })
+        #expect(!stale.removablePaths.contains { $0.hasSuffix("snapshots/revKEPT") })
+    }
+
+    @Test("a repo whose only revision is referenced has nothing to prune")
+    func noDetachedRevisions() throws {
+        let cache = try HFFixture()
+        let repo = try cache.repo("models--org--m")
+        try cache.blob(repo, "w", bytes: 100)
+        try cache.snapshotSymlink(repo, revision: "rev1", file: "model.bin", toBlob: "w")
+        try cache.refPointing(repo, "main", to: "rev1")
+
+        #expect(HuggingFaceCacheInventory.staleRevisions(forRepoAt: repo) == nil)
+    }
+}
+
+@Suite("CleanupEngine + Hugging Face revision pruning")
+struct CleanupEngineHFRevisionTests {
+
+    @Test("pruning removes detached snapshots and orphan blobs, keeps the rest")
+    @MainActor
+    func prunesDetachedOnly() async throws {
+        let cache = try HFFixture()
+        let repo = try cache.staleRepo()
+        let stale = try #require(HuggingFaceCacheInventory.staleRevisions(forRepoAt: repo))
+        let item = HuggingFaceModelScanAdapter.makeRevisionResult(stale)
+
+        let engine = CleanupEngine(homeDirectoryForTesting: FileManager.default.homeDirectoryForCurrentUser)
+        let result = await engine.clean([item], method: .delete)
+        #expect(result.allSucceeded)
+
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: repo.appendingPathComponent("blobs/oldOnly").path))
+        #expect(!fm.fileExists(atPath: repo.appendingPathComponent("snapshots/revOLD").path))
+        #expect(fm.fileExists(atPath: repo.appendingPathComponent("blobs/shared").path))
+        #expect(fm.fileExists(atPath: repo.appendingPathComponent("blobs/newOnly").path))
+        #expect(fm.fileExists(atPath: repo.appendingPathComponent("snapshots/revKEPT").path))
+    }
 }
 
 @Suite("HuggingFaceModelScanAdapter")
@@ -133,6 +183,22 @@ private final class HFFixture {
         return url
     }
 
+    /// A repo with one referenced revision (revKEPT) and one detached (revOLD).
+    /// `shared` is held by both, `newOnly` by the kept revision, `oldOnly`
+    /// solely by the detached one — so only `oldOnly` (700 B) is reclaimable.
+    func staleRepo() throws -> URL {
+        let repo = try repo("models--org--m")
+        try blob(repo, "shared", bytes: 300)
+        try blob(repo, "oldOnly", bytes: 700)
+        try blob(repo, "newOnly", bytes: 500)
+        try snapshotSymlink(repo, revision: "revKEPT", file: "model.bin", toBlob: "shared")
+        try snapshotSymlink(repo, revision: "revKEPT", file: "extra.bin", toBlob: "newOnly")
+        try snapshotSymlink(repo, revision: "revOLD", file: "model.bin", toBlob: "shared")
+        try snapshotSymlink(repo, revision: "revOLD", file: "old.bin", toBlob: "oldOnly")
+        try refPointing(repo, "main", to: "revKEPT")
+        return repo
+    }
+
     func blob(_ repo: URL, _ name: String, bytes: Int) throws {
         let url = repo.appendingPathComponent("blobs/\(name)")
         try Data(repeating: 0x3, count: bytes).write(to: url)
@@ -142,6 +208,12 @@ private final class HFFixture {
         let dir = repo.appendingPathComponent("refs", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try Data(repeating: 0x4, count: bytes).write(to: dir.appendingPathComponent(name))
+    }
+
+    func refPointing(_ repo: URL, _ name: String, to revision: String) throws {
+        let dir = repo.appendingPathComponent("refs", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try revision.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
     }
 
     func snapshotSymlink(_ repo: URL, revision: String, file: String, toBlob blob: String) throws {
