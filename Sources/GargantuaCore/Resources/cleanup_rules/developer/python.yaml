@@ -227,9 +227,18 @@ rules:
     name: Hugging Face Cache
     paths:
       - "~/.cache/huggingface"
+    # `hub/` (downloaded model/dataset/space repos) is surfaced per-repo by
+    # the AI Models scanner, so excluding it here avoids double-counting in
+    # Deep Clean. `token`/`stored_tokens` hold the Hugging Face login and must
+    # never be cleaned. Excludes flip this literal-path rule into enumerating
+    # the remaining transient caches (datasets, modules, assets) individually.
+    exclude:
+      - "*/hub"
+      - "*/token"
+      - "*/stored_tokens"
     safety: review
     confidence: 82
-    explanation: "Downloaded Hugging Face models and datasets. Re-downloadable, but often large and useful offline."
+    explanation: "Hugging Face transient caches outside the per-repo hub store (datasets, modules, assets). Re-downloadable, but often large and useful offline."
     source:
       name: Hugging Face
     regenerates: true
