@@ -2,5 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Hardened Runtime blocks Apple Events unless the sender holds this
+         entitlement. Required so Gargantua can ask Finder to move items to
+         Trash; without it macOS denies the event before the Automation
+         consent prompt can appear. -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
 </dict>
 </plist>
