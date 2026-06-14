@@ -113,7 +113,7 @@ enum EngineCostHint {
     static func text(for engine: AIEngineID) -> String {
         switch engine {
         case .template:
-            return "Instant · free · on-device"
+            return "Deterministic rules, not AI · instant · free · explains and organizes"
         case .mlx:
             return "On-device · free · needs the downloaded model"
         case .cloud:
