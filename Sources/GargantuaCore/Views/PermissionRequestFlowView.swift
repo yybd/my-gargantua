@@ -54,6 +54,8 @@ private struct FullDiskAccessScreen: View {
 
     @State private var hasAccess = PermissionChecker.hasFullDiskAccess
 
+    @Environment(\.openURL) private var openURL
+
     /// Polls permission status so the UI updates after the user grants access
     /// in System Settings without requiring a manual refresh.
     private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
@@ -71,8 +73,15 @@ private struct FullDiskAccessScreen: View {
                 "More complete cleanup recommendations before you delete anything",
             ],
             limitedMode: "Without this, Gargantua only scans what your home folder exposes.",
-            settingsURL: fullDiskAccessURL,
             permissionGranted: hasAccess,
+            primaryTitle: "Open System Settings",
+            onPrimary: { openURL(fullDiskAccessURL) },
+            secondaryLinkTitle: nil,
+            onSecondary: nil,
+            // Full Disk Access *does* have a "+" — unlike Automation — so the
+            // manual-add hint is accurate here.
+            manualHint: "Click \"+\" in Settings, then add Gargantua from Applications.",
+            isBusy: false,
             stepIndex: stepIndex,
             totalSteps: totalSteps,
             onContinue: onContinue
@@ -102,25 +111,91 @@ private struct AutomationScreen: View {
     let stepIndex: Int
     let totalSteps: Int
 
+    @State private var status = PermissionChecker.finderAutomationPermission(prompt: false)
+    @State private var isRequesting = false
+    @State private var requestTask: Task<Void, Never>?
+
+    @Environment(\.openURL) private var openURL
+
+    /// Reflects changes made directly in System Settings (e.g. toggling the
+    /// entry back on after a prior denial) without re-prompting.
+    private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+
     var body: some View {
         PermissionScreen(
             icon: "arrow.3.trianglepath",
             title: "Automation",
             explanation: "Unlock safer cleanup execution",
             detail: "Gargantua asks Finder to move files to Trash first, then falls "
-                + "back to macOS Trash APIs if Automation is unavailable. You can "
-                + "restore files from Trash if needed.",
+                + "back to macOS Trash APIs if Automation is unavailable. macOS asks "
+                + "you to allow controlling Finder the first time — there's nothing to "
+                + "add by hand.",
             unlocks: [
                 "Use Finder-first cleanup for ordinary files",
                 "Keep direct Trash fallback available when Automation is denied",
             ],
             limitedMode: "Without Automation, Gargantua can still scan and use direct Trash APIs for cleanup.",
-            settingsURL: automationURL,
-            permissionGranted: nil,
+            permissionGranted: grantedState,
+            primaryTitle: primaryTitle,
+            onPrimary: requestAccess,
+            secondaryLinkTitle: status == .denied ? "Open Automation settings" : nil,
+            onSecondary: status == .denied ? { openURL(automationURL) } : nil,
+            manualHint: manualHint,
+            isBusy: isRequesting,
             stepIndex: stepIndex,
             totalSteps: totalSteps,
             onContinue: onContinue
         )
+        .onReceive(timer) { _ in
+            // Cheap, non-prompting probe; ignore while a prompt is in flight.
+            if !isRequesting {
+                status = PermissionChecker.finderAutomationPermission(prompt: false)
+            }
+        }
+        .onDisappear {
+            requestTask?.cancel()
+        }
+    }
+
+    /// `nil` (rather than `false`) while undetermined so the card shows the
+    /// neutral "recommended" state instead of a red "denied" mark.
+    private var grantedState: Bool? {
+        switch status {
+        case .granted: return true
+        case .denied: return false
+        case .notDetermined: return nil
+        }
+    }
+
+    private var primaryTitle: String {
+        switch status {
+        case .granted: return "Allowed"
+        case .denied: return "Request Again"
+        case .notDetermined: return "Allow Finder Control"
+        }
+    }
+
+    private var manualHint: String? {
+        switch status {
+        case .denied:
+            return "Previously denied. Re-request below, or turn Gargantua → Finder "
+                + "back on in Automation settings."
+        case .granted, .notDetermined:
+            return nil
+        }
+    }
+
+    private func requestAccess() {
+        guard !isRequesting, status != .granted else { return }
+        isRequesting = true
+        requestTask = Task.detached {
+            // Blocks while the consent dialog is on screen — must stay off main.
+            let result = PermissionChecker.finderAutomationPermission(prompt: true)
+            await MainActor.run {
+                status = result
+                isRequesting = false
+            }
+        }
     }
 
     private var automationURL: URL {
@@ -137,13 +212,16 @@ private struct PermissionScreen: View {
     let detail: String
     let unlocks: [String]
     let limitedMode: String
-    let settingsURL: URL
     var permissionGranted: Bool?
+    let primaryTitle: String
+    let onPrimary: () -> Void
+    var secondaryLinkTitle: String?
+    var onSecondary: (() -> Void)?
+    var manualHint: String?
+    var isBusy: Bool = false
     let stepIndex: Int
     let totalSteps: Int
     let onContinue: () -> Void
-
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(spacing: GargantuaSpacing.space5) {
@@ -192,23 +270,39 @@ private struct PermissionScreen: View {
             // Actions
             VStack(spacing: GargantuaSpacing.space3) {
                 Button {
-                    openURL(settingsURL)
+                    onPrimary()
                 } label: {
-                    Text("Open System Settings")
-                        .font(GargantuaFonts.label)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: 240)
-                        .padding(.vertical, GargantuaSpacing.space2)
-                        .background(GargantuaColors.accent, in: RoundedRectangle(cornerRadius: GargantuaRadius.small))
+                    HStack(spacing: GargantuaSpacing.space2) {
+                        if isBusy {
+                            AccretionDiskView(activityRate: 18, size: 12, color: .white)
+                        }
+                        Text(primaryTitle)
+                            .font(GargantuaFonts.label)
+                            .foregroundStyle(.white)
+                    }
+                    .frame(maxWidth: 240)
+                    .padding(.vertical, GargantuaSpacing.space2)
+                    .background(GargantuaColors.accent, in: RoundedRectangle(cornerRadius: GargantuaRadius.small))
+                    .opacity(isBusy ? 0.7 : 1)
                 }
                 .buttonStyle(.plain)
+                .disabled(isBusy)
 
-                if permissionGranted != true {
+                if let secondaryLinkTitle, let onSecondary {
+                    Button(action: onSecondary) {
+                        Text(secondaryLinkTitle)
+                            .font(GargantuaFonts.caption)
+                            .foregroundStyle(GargantuaColors.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let manualHint, permissionGranted != true {
                     HStack(spacing: GargantuaSpacing.space2) {
-                        Image(systemName: "plus.circle")
+                        Image(systemName: "info.circle")
                             .font(.system(size: 12))
                             .foregroundStyle(GargantuaColors.ink3)
-                        Text("Click \"+\" in Settings, then add Gargantua from Applications.")
+                        Text(manualHint)
                             .font(GargantuaFonts.caption)
                             .foregroundStyle(GargantuaColors.ink3)
                     }
@@ -230,6 +324,7 @@ private struct PermissionScreen: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .disabled(isBusy)
             }
 
             Text("Local-only. You can change this later in System Settings.")

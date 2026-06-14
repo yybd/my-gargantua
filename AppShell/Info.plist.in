@@ -60,6 +60,8 @@
     <string>Gargantua scans connected external drives to find duplicate, unused, and large files when you explicitly select them.</string>
     <key>NSNetworkVolumesUsageDescription</key>
     <string>Gargantua scans mounted network volumes to find duplicate, unused, and large files when you explicitly select them.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Gargantua asks Finder to move selected items to Trash, keeping cleanup reversible.</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUScheduledCheckInterval</key>
