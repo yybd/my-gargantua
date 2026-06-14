@@ -60,20 +60,23 @@ public final class AIExplanationController: ObservableObject {
     public typealias DeeperExplainHandler = @MainActor (ScanResult, ScanRule) async throws -> AIExplanation
 
     private let service: any AIServiceProtocol
+    private let inlineExplain: DeeperExplainHandler?
     private let deeperExplain: DeeperExplainHandler?
     private let deeperAvailable: @MainActor () -> Bool
     private var activeTask: Task<Void, Never>?
     /// Whether the in-flight / last request was a deeper escalation, so
     /// `retry()` re-runs the deeper provider instead of falling back to the
-    /// inline local engine.
+    /// inline engine.
     private var lastRequestWasDeeper = false
 
     public init(
         service: any AIServiceProtocol,
+        inlineExplain: DeeperExplainHandler? = nil,
         deeperExplain: DeeperExplainHandler? = nil,
         deeperAvailable: @escaping @MainActor () -> Bool = { false }
     ) {
         self.service = service
+        self.inlineExplain = inlineExplain
         self.deeperExplain = deeperExplain
         self.deeperAvailable = deeperAvailable
     }
@@ -82,6 +85,13 @@ public final class AIExplanationController: ObservableObject {
     /// provider is wired in AND the currently selected one is configured.
     public var canExplainDeeper: Bool {
         deeperExplain != nil && deeperAvailable()
+    }
+
+    /// Whether to actually show the button right now: deeper is available and
+    /// the currently displayed result didn't already come from a deeper run
+    /// (no point deepening an explanation that's already the deeper one).
+    public var canOfferDeeper: Bool {
+        canExplainDeeper && !lastRequestWasDeeper
     }
 
     /// True while an explanation request is in flight. Useful for dimming
@@ -102,14 +112,34 @@ public final class AIExplanationController: ObservableObject {
     /// and replaced; only the latest call wins (e.g. user hovers two rows
     /// in quick succession).
     public func explain(_ result: ScanResult) {
+        let service = self.service
+        let handler = inlineExplain ?? { result, rule in
+            try await service.explain(result: result, rule: rule)
+        }
+        run(result, deeper: false, handler: handler)
+    }
+
+    /// Escalate the given result to the assigned deeper engine (Cloud, Claude
+    /// Code, or Codex). Replaces any in-flight request; the sheet shows the
+    /// loading state and then the deeper, prose explanation.
+    public func explainDeeper(_ result: ScanResult) {
+        guard let deeperExplain else { return }
+        run(result, deeper: true, handler: deeperExplain)
+    }
+
+    /// Shared request loop for inline and deeper explanations.
+    private func run(
+        _ result: ScanResult,
+        deeper: Bool,
+        handler: @escaping DeeperExplainHandler
+    ) {
         activeTask?.cancel()
-        lastRequestWasDeeper = false
+        lastRequestWasDeeper = deeper
         presentation = .loading(result)
         let rule = Self.derivedRule(from: result)
-        let service = self.service
         activeTask = Task { [weak self] in
             do {
-                let explanation = try await service.explain(result: result, rule: rule)
+                let explanation = try await handler(result, rule)
                 try Task.checkCancellation()
                 guard let self else { return }
                 // Guard against a stale response overwriting a newer request.
@@ -119,38 +149,10 @@ public final class AIExplanationController: ObservableObject {
             } catch is CancellationError {
                 return
             } catch {
-                guard let self else { return }
-                if self.presentation?.result.id == result.id {
-                    self.presentation = .failed(result, message: error.localizedDescription)
-                }
-            }
-        }
-    }
-
-    /// Escalate the given result to the selected deeper provider (Cloud or
-    /// Claude Code). Replaces any in-flight request; the sheet shows the
-    /// loading state and then the deeper, prose explanation.
-    public func explainDeeper(_ result: ScanResult) {
-        guard let deeperExplain else { return }
-        activeTask?.cancel()
-        lastRequestWasDeeper = true
-        presentation = .loading(result)
-        let rule = Self.derivedRule(from: result)
-        activeTask = Task { [weak self] in
-            do {
-                let explanation = try await deeperExplain(result, rule)
-                try Task.checkCancellation()
-                guard let self else { return }
-                if self.presentation?.result.id == result.id {
-                    self.presentation = .loaded(result, explanation)
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                // A cancelled deeper request surfaces as a provider error
-                // (the runner terminates the subprocess, which maps to a CLI
-                // failure rather than CancellationError). Don't let that stale
-                // failure overwrite the request that superseded it.
+                // A cancelled request can surface as a provider error rather
+                // than CancellationError (a CLI engine terminates its
+                // subprocess, which maps to a CLI failure). Don't let that
+                // stale failure overwrite the request that superseded it.
                 guard !Task.isCancelled else { return }
                 guard let self else { return }
                 if self.presentation?.result.id == result.id {
@@ -161,8 +163,8 @@ public final class AIExplanationController: ObservableObject {
     }
 
     /// Re-run the last failed request through whichever path produced it —
-    /// deeper provider if the failure came from "Explain deeper", otherwise
-    /// the inline local engine.
+    /// the deeper engine if the failure came from "Explain deeper", otherwise
+    /// the inline engine.
     public func retry() {
         guard case .failed(let result, _) = presentation else { return }
         if lastRequestWasDeeper {

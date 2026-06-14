@@ -192,13 +192,19 @@ public struct AIExplanationSheet: View {
             )
         case .cloud:
             badge(
-                label: "Deeper · Cloud (Anthropic)",
+                label: "Cloud (Anthropic)",
                 icon: "cloud",
                 color: GargantuaColors.accent
             )
         case .claudeCode:
             badge(
-                label: "Deeper · Claude Code",
+                label: "Claude Code",
+                icon: "terminal",
+                color: GargantuaColors.accent
+            )
+        case .codex:
+            badge(
+                label: "Codex",
                 icon: "terminal",
                 color: GargantuaColors.accent
             )
@@ -258,8 +264,8 @@ public struct AIExplanationSheet: View {
     /// (never on already-deep cloud/agent results) and only when the selected
     /// deeper provider is configured.
     @ViewBuilder
-    private func deeperButton(for explanation: AIExplanation, result: ScanResult) -> some View {
-        if !explanation.source.isDeeper, controller.canExplainDeeper {
+    private func deeperButton(for _: AIExplanation, result: ScanResult) -> some View {
+        if controller.canOfferDeeper {
             Button("Explain deeper") {
                 controller.explainDeeper(result)
             }
@@ -272,7 +278,7 @@ public struct AIExplanationSheet: View {
     @ViewBuilder
     private func footerCTA(for explanation: AIExplanation) -> some View {
         switch explanation.source {
-        case .ai, .cloud, .claudeCode:
+        case .ai, .cloud, .claudeCode, .codex:
             EmptyView()
         case .template:
             if preferredAIEngineKind == .template {

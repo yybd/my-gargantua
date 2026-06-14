@@ -36,7 +36,7 @@ struct CleanupNarrativeSection: View {
 
     private var headingText: String {
         switch narrative.source {
-        case .ai, .cloud, .claudeCode: return "AI summary"
+        case .ai, .cloud, .claudeCode, .codex: return "AI summary"
         case .template: return "Summary"
         case .rule: return "Summary"
         }
@@ -47,6 +47,7 @@ struct CleanupNarrativeSection: View {
         case .ai: return "AI-generated summary"
         case .cloud: return "Cloud AI-generated summary"
         case .claudeCode: return "Claude Code-generated summary"
+        case .codex: return "Codex-generated summary"
         case .template: return "Rule-based summary"
         case .rule: return "Template summary"
         }

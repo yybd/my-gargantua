@@ -14,18 +14,11 @@ public enum ExplanationSource: Sendable, Equatable {
     /// Deeper, on-demand explanation generated through the hosted Anthropic
     /// API (Cloud AI), billed to the user's API key.
     case cloud
-    /// Deeper, on-demand explanation generated through the user's local
-    /// Claude Code CLI (their Claude subscription), no API key required.
+    /// Explanation generated through the user's local Claude Code CLI (their
+    /// Claude subscription), no API key required.
     case claudeCode
-
-    /// Whether this source is an on-demand "deeper" escalation. The explain
-    /// sheet uses it to avoid offering "Explain deeper" on already-deep output.
-    public var isDeeper: Bool {
-        switch self {
-        case .cloud, .claudeCode: true
-        case .ai, .template, .rule: false
-        }
-    }
+    /// Explanation generated through the user's local Codex CLI.
+    case codex
 }
 
 /// An explanation of a scan result, with metadata about how it was generated.

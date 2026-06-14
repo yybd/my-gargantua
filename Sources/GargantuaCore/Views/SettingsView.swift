@@ -145,22 +145,18 @@ public struct SettingsView: View {
         case .ai:
             aiTabIntro
             aiJobGroupHeader(
-                "Inline explanations",
-                detail: "Automatic, on-device, free. Gargantua is fully functional on Template alone — everything below is optional."
+                "Your AI engines",
+                detail: "Set these up once. Template is always on and free; the rest are optional. Assign them to jobs below."
             )
             modelSection
-            aiJobGroupHeader(
-                "Deeper explanations, on demand",
-                detail: "Richer write-ups when you ask for them — via your Anthropic API key, or your Claude Code subscription."
-            )
-            DeeperExplainProviderSection()
             CloudAISettingsSection()
-            aiJobGroupHeader(
-                "Run maintenance for me",
-                detail: "Agentic runtimes that can propose and run cleanups on your behalf."
-            )
             ClaudeCodeAgentSettingsSection()
             CodexAgentSettingsSection()
+            aiJobGroupHeader(
+                "What uses which engine",
+                detail: "Pick which engine powers each job. Greyed-out engines can’t do that job — hover to see why."
+            )
+            AIEngineAssignmentSection()
         case .automation:
             appearanceSection
             schedulingSection

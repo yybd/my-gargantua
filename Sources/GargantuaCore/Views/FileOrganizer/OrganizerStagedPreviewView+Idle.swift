@@ -9,7 +9,7 @@ extension OrganizerStagedPreviewView {
         ScrollView {
             VStack(spacing: GargantuaSpacing.space5) {
                 idleHeader
-                OrganizerEngineSelector(mlxAvailabilityProvider: mlxAvailabilityProvider)
+                organizerEngineNote
                 folderPicker
                 proposeButton
                 trustReassurance
@@ -28,7 +28,7 @@ extension OrganizerStagedPreviewView {
                 .font(GargantuaFonts.heading)
                 .foregroundStyle(GargantuaColors.ink)
             Text(
-                "Pick an engine and a folder. The proposal is reviewed before anything moves — " +
+                "Pick a folder. The proposal is reviewed before anything moves — " +
                     "nothing is touched until you click Apply."
             )
             .font(GargantuaFonts.body)
@@ -36,6 +36,33 @@ extension OrganizerStagedPreviewView {
             .multilineTextAlignment(.center)
             .frame(maxWidth: 420)
         }
+    }
+
+    /// Read-only note replacing the old inline engine picker — engine choice
+    /// now lives in Settings → AI (the "Organize files" job).
+    private var organizerEngineNote: some View {
+        let engine = AIEngineAssignments.engine(for: .organize)
+        return HStack(spacing: GargantuaSpacing.space2) {
+            Image(systemName: engine.systemImage)
+                .font(.system(size: 12))
+                .foregroundStyle(GargantuaColors.ink3)
+            Text("Organizing with \(engine.label)")
+                .font(GargantuaFonts.label)
+                .foregroundStyle(GargantuaColors.ink2)
+            Text("· change in Settings → AI")
+                .font(GargantuaFonts.caption)
+                .foregroundStyle(GargantuaColors.ink4)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, GargantuaSpacing.space3)
+        .padding(.vertical, GargantuaSpacing.space2)
+        .frame(maxWidth: 460, alignment: .leading)
+        .background(GargantuaColors.surface1)
+        .overlay(
+            RoundedRectangle(cornerRadius: GargantuaRadius.small)
+                .stroke(GargantuaColors.borderSoft, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
     }
 
     private var proposeButton: some View {

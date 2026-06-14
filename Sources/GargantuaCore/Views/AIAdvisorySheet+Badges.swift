@@ -4,7 +4,7 @@ extension AIAdvisorySheet {
     @ViewBuilder
     func sourceBadge(_ source: ExplanationSource) -> some View {
         switch source {
-        case .ai, .cloud, .claudeCode:
+        case .ai, .cloud, .claudeCode, .codex:
             badge(label: "AI", icon: "sparkles", color: GargantuaColors.accent)
         case .template:
             badge(label: "Rule-based", icon: "doc.text", color: GargantuaColors.ink3)
@@ -15,7 +15,7 @@ extension AIAdvisorySheet {
 
     func suggestedClassificationLabel(for source: ExplanationSource) -> String {
         switch source {
-        case .ai, .cloud, .claudeCode: return "AI suggests:"
+        case .ai, .cloud, .claudeCode, .codex: return "AI suggests:"
         case .template, .rule: return "Suggested:"
         }
     }

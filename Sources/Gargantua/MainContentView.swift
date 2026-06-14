@@ -64,15 +64,19 @@ struct MainContentView: View {
         _aiService = StateObject(wrappedValue: service)
 
         // Cloud service is needed before the explanation controller so the
-        // "Explain deeper" escalation can route to it (or to Claude Code).
+        // explanation router can route inline and deeper requests to the
+        // engine assigned to each job (local / Cloud / Claude Code / Codex).
         let cloudAI = CloudAIService()
-        let deeperExplanation = DeeperExplanationService(cloud: cloudAI)
+        let router = ExplanationRouter(local: service, cloud: cloudAI)
         _aiExplanation = StateObject(wrappedValue: AIExplanationController(
             service: service,
-            deeperExplain: { result, rule in
-                try await deeperExplanation.explainDeeper(result: result, rule: rule)
+            inlineExplain: { result, rule in
+                try await router.explain(.inlineExplain, result: result, rule: rule)
             },
-            deeperAvailable: { deeperExplanation.isAvailable() }
+            deeperExplain: { result, rule in
+                try await router.explain(.deeperExplain, result: result, rule: rule)
+            },
+            deeperAvailable: { router.isAvailable(.deeperExplain) }
         ))
         _aiAdvisory = StateObject(wrappedValue: AIAdvisoryController(service: service))
         _mcpStatusModel = StateObject(wrappedValue: MCPServerStatusViewModel())
