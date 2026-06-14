@@ -37,6 +37,10 @@ public struct CodexOneShotRunner: @unchecked Sendable {
             "exec",
             "--skip-git-repo-check",
             "--sandbox", "read-only",
+            // One-shot, no persisted session. (Codex has no flag to disable
+            // file-reading tools the way Claude does, so read-only is the
+            // tightest filesystem boundary available here.)
+            "--ephemeral",
             "-o", lastMessageFile.path,
         ]
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)

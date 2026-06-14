@@ -8,12 +8,18 @@ import SwiftUI
 struct AIEngineAssignmentSection: View {
     @State private var selections: [AIUseCase: AIEngineID] = [:]
 
+    /// Jobs that actually route through an assigned engine today. `.maintenance`
+    /// is intentionally excluded until the Codex agent runtime exists and Agent
+    /// Run / scheduled audits honor the assignment — showing it now would be a
+    /// control that does nothing.
+    private let displayedUseCases: [AIUseCase] = [.inlineExplain, .deeperExplain, .organize]
+
     var body: some View {
         SettingsSectionContainer(
             "What uses which engine",
             subtitle: "Pick the engine for each job. Set the engines up above; assign them here."
         ) {
-            ForEach(Array(AIUseCase.allCases.enumerated()), id: \.element) { index, useCase in
+            ForEach(Array(displayedUseCases.enumerated()), id: \.element) { index, useCase in
                 if index > 0 {
                     Divider().overlay(GargantuaColors.border)
                 }
@@ -24,7 +30,7 @@ struct AIEngineAssignmentSection: View {
     }
 
     private func reload() {
-        for useCase in AIUseCase.allCases {
+        for useCase in displayedUseCases {
             selections[useCase] = AIEngineAssignments.engine(for: useCase)
         }
     }
@@ -120,7 +126,9 @@ enum EngineCostHint {
         case .claudeCode:
             return "Uses your Claude subscription · no per-call charge"
         case .codex:
-            return "Uses your Codex account · no per-call charge"
+            // Honest caveat: codex exec has no tool-disable flag, so it runs
+            // locally with read access — for an explanation it can read files.
+            return "Uses your Codex account · runs locally, can read files"
         }
     }
 
