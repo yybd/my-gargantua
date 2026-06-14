@@ -326,6 +326,45 @@ struct CloudAITests {
     }
 }
 
+// Provider routing lives in an extension so it doesn't bloat the main suite's
+// type body; private helpers above are reachable here (same file).
+extension CloudAITests {
+    @Test("OpenAI-compatible provider skips the monthly cap and allows an empty key")
+    func openAICompatibleSkipsCapAndAllowsNoKey() async throws {
+        let defaults = try makeDefaults()
+        let configStore = CloudAIConfigurationStore(defaults: defaults)
+        // Cap of 0 would block any Anthropic request; OpenAI-compatible isn't metered here.
+        configStore.save(CloudAIConfiguration(
+            isEnabled: true,
+            monthlySpendCapCents: 0,
+            model: "gpt-4o-mini",
+            provider: .openAICompatible,
+            openAIBaseURL: "http://localhost:11434/v1"
+        ))
+        let transport = PermissiveFakeCloudAITransport(response: CloudAIResponse(
+            text: #"{"summary":"ok","recommendations":[]}"#,
+            inputTokens: 10,
+            outputTokens: 10
+        ))
+        let service = CloudAIService(
+            configurationStore: configStore,
+            keyStore: FakeCloudAPIKeyStore(apiKey: nil), // local server, no key
+            transport: transport,
+            usageLedger: CloudAIUsageLedger(defaults: defaults),
+            logger: CloudAIRequestLogger(logURL: tempURL("cloud-openai-log.jsonl"))
+        )
+
+        _ = try await service.deepAnalyze(results: [makeResult(id: "one", safety: .safe)])
+        #expect(await transport.callCount == 1)
+        #expect(await transport.lastKey == "")
+
+        // OpenAI-compatible isn't metered: a request is counted but no spend recorded.
+        let usage = await CloudAIUsageLedger(defaults: defaults).snapshot()
+        #expect(usage.requestCount == 1)
+        #expect(usage.spentCents == 0)
+    }
+}
+
 private final class FakeCloudAPIKeyStore: CloudAPIKeyStore, @unchecked Sendable {
     private let lock = NSLock()
     private var apiKey: String?
@@ -370,6 +409,30 @@ private actor FakeCloudAITransport: CloudAITransport {
         callCount += 1
         lastRequest = request
         #expect(apiKey.hasPrefix("sk-ant-"))
+        return response
+    }
+
+    nonisolated func stream(_ request: CloudAIRequest, apiKey: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
+/// Like `FakeCloudAITransport` but accepts any key (incl. empty), for the
+/// OpenAI-compatible path where local servers send no `Authorization`.
+private actor PermissiveFakeCloudAITransport: CloudAITransport {
+    private let response: CloudAIResponse
+    private(set) var callCount = 0
+    private(set) var lastKey: String?
+
+    init(response: CloudAIResponse) {
+        self.response = response
+    }
+
+    func complete(_ request: CloudAIRequest, apiKey: String) async throws -> CloudAIResponse {
+        callCount += 1
+        lastKey = apiKey
         return response
     }
 

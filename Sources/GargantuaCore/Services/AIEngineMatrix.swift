@@ -16,7 +16,7 @@ public enum AIEngineID: String, CaseIterable, Codable, Identifiable, Sendable {
         switch self {
         case .template: "Template"
         case .mlx: "Local MLX"
-        case .cloud: "Cloud (Anthropic)"
+        case .cloud: "Cloud API"
         case .claudeCode: "Claude Code"
         case .codex: "Codex"
         }

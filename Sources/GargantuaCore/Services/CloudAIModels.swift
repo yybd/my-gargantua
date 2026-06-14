@@ -28,6 +28,42 @@ public enum CloudAIFeature: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// Which API the Cloud engine talks to. Anthropic uses the native Messages
+/// API; `openAICompatible` uses the OpenAI Chat Completions shape, which a
+/// configurable base URL points at OpenAI itself *or* any compatible endpoint
+/// (OpenRouter, Groq, Together, Ollama, LM Studio, llama.cpp, …).
+public enum CloudAIProvider: String, Codable, Sendable, CaseIterable, Identifiable {
+    case anthropic
+    case openAICompatible = "openai_compatible"
+
+    public var id: String { rawValue }
+
+    /// User-facing provider name.
+    public var displayName: String {
+        switch self {
+        case .anthropic: "Anthropic"
+        case .openAICompatible: "OpenAI-compatible"
+        }
+    }
+
+    /// Default model identifier when switching to this provider.
+    public var defaultModel: String {
+        switch self {
+        case .anthropic: CloudAIConfiguration.defaultModel
+        case .openAICompatible: "gpt-4o-mini"
+        }
+    }
+
+    /// Default `/v1`-style base URL. Empty for Anthropic (it uses a fixed
+    /// Messages endpoint, not a configurable base).
+    public var defaultBaseURL: String {
+        switch self {
+        case .anthropic: ""
+        case .openAICompatible: "https://api.openai.com/v1"
+        }
+    }
+}
+
 /// User-configurable Cloud AI settings.
 public struct CloudAIConfiguration: Codable, Sendable, Equatable {
     /// Default Anthropic model used for cloud requests.
@@ -41,12 +77,19 @@ public struct CloudAIConfiguration: Codable, Sendable, Equatable {
     public var isEnabled: Bool
     /// Whether prompts may include file contents instead of metadata only.
     public var allowsFileContents: Bool
-    /// Monthly spend limit, in cents.
+    /// Monthly spend limit, in cents. Enforced for Anthropic only — for
+    /// OpenAI-compatible endpoints pricing varies per provider/model (and many
+    /// local ones are free), so billing is left to the provider.
     public var monthlySpendCapCents: Int
     /// Model identifier used for requests.
     public var model: String
     /// Maximum output tokens requested from the model.
     public var maxTokens: Int
+    /// Which API to talk to.
+    public var provider: CloudAIProvider
+    /// Base URL for the OpenAI-compatible endpoint (e.g.
+    /// `https://api.openai.com/v1`). Ignored when `provider == .anthropic`.
+    public var openAIBaseURL: String
 
     /// Creates a Cloud AI configuration, clamping numeric limits to valid ranges.
     public init(
@@ -54,13 +97,67 @@ public struct CloudAIConfiguration: Codable, Sendable, Equatable {
         allowsFileContents: Bool = false,
         monthlySpendCapCents: Int = Self.defaultMonthlySpendCapCents,
         model: String = Self.defaultModel,
-        maxTokens: Int = Self.defaultMaxTokens
+        maxTokens: Int = Self.defaultMaxTokens,
+        provider: CloudAIProvider = .anthropic,
+        openAIBaseURL: String = ""
     ) {
         self.isEnabled = isEnabled
         self.allowsFileContents = allowsFileContents
         self.monthlySpendCapCents = max(0, monthlySpendCapCents)
         self.model = model
         self.maxTokens = max(1, maxTokens)
+        self.provider = provider
+        self.openAIBaseURL = openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled, allowsFileContents, monthlySpendCapCents, model, maxTokens, provider, openAIBaseURL
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            isEnabled: try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false,
+            allowsFileContents: try c.decodeIfPresent(Bool.self, forKey: .allowsFileContents) ?? false,
+            monthlySpendCapCents: try c.decodeIfPresent(Int.self, forKey: .monthlySpendCapCents) ?? Self.defaultMonthlySpendCapCents,
+            model: try c.decodeIfPresent(String.self, forKey: .model) ?? Self.defaultModel,
+            maxTokens: try c.decodeIfPresent(Int.self, forKey: .maxTokens) ?? Self.defaultMaxTokens,
+            provider: try c.decodeIfPresent(CloudAIProvider.self, forKey: .provider) ?? .anthropic,
+            openAIBaseURL: try c.decodeIfPresent(String.self, forKey: .openAIBaseURL) ?? ""
+        )
+    }
+
+    /// Resolved OpenAI-compatible base URL, falling back to OpenAI's when the
+    /// user hasn't set one. `nil` only when a non-empty value can't form a URL.
+    public var resolvedOpenAIBaseURL: URL? {
+        let trimmed = openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed.isEmpty ? CloudAIProvider.openAICompatible.defaultBaseURL : trimmed
+        return URL(string: value)
+    }
+
+    /// True when the OpenAI-compatible endpoint uses plain HTTP to a non-local
+    /// host — the API key and any file snippets would travel unencrypted. LAN
+    /// and loopback hosts are fine (local-first setups), so they don't trip it.
+    public var usesInsecureRemoteEndpoint: Bool {
+        guard provider == .openAICompatible,
+              let url = resolvedOpenAIBaseURL,
+              url.scheme?.lowercased() == "http",
+              let host = url.host?.lowercased()
+        else { return false }
+        return !Self.isLocalOrPrivateHost(host)
+    }
+
+    /// Loopback, `.local`, and RFC 1918 private ranges — addresses where plain
+    /// HTTP stays on the user's own machine or LAN.
+    static func isLocalOrPrivateHost(_ host: String) -> Bool {
+        if host == "localhost" || host == "::1" || host.hasSuffix(".local") { return true }
+        if host.hasPrefix("127.") || host.hasPrefix("10.") || host.hasPrefix("192.168.") { return true }
+        // 172.16.0.0 – 172.31.255.255
+        let octets = host.split(separator: ".")
+        if octets.count == 4, octets[0] == "172", let second = Int(octets[1]), (16 ... 31).contains(second) {
+            return true
+        }
+        return false
     }
 }
 

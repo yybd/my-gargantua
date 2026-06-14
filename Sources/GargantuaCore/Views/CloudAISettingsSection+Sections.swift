@@ -25,13 +25,122 @@ extension CloudAISettingsSection {
         }
     }
 
+    // MARK: - Provider + endpoint + model
+
+    var providerPicker: some View {
+        HStack(spacing: GargantuaSpacing.space3) {
+            SettingsRowIcon(systemName: "server.rack", size: 14)
+            SettingsRowText(title: "Provider", detail: "Anthropic, or any OpenAI-compatible API.")
+            Spacer()
+            Menu {
+                ForEach(CloudAIProvider.allCases) { provider in
+                    Button(provider.displayName) { selectProvider(provider) }
+                }
+            } label: {
+                HStack(spacing: GargantuaSpacing.space1) {
+                    Text(configuration.provider.displayName)
+                        .font(GargantuaFonts.label)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9))
+                        .foregroundStyle(GargantuaColors.ink4)
+                }
+                .foregroundStyle(GargantuaColors.ink)
+                .padding(.horizontal, GargantuaSpacing.space3)
+                .padding(.vertical, GargantuaSpacing.space2)
+                .background(GargantuaColors.surface3)
+                .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+    }
+
+    var baseURLRow: some View {
+        HStack(spacing: GargantuaSpacing.space3) {
+            SettingsRowIcon(systemName: "link", size: 14)
+
+            TextField("https://api.openai.com/v1", text: Binding(
+                get: { configuration.openAIBaseURL },
+                set: { configuration.openAIBaseURL = $0 }
+            ))
+            .textFieldStyle(.plain)
+            .font(GargantuaFonts.monoData)
+            .foregroundStyle(GargantuaColors.ink)
+            .padding(.horizontal, GargantuaSpacing.space3)
+            .padding(.vertical, GargantuaSpacing.space2)
+            .background(GargantuaColors.surface3)
+            .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
+            .onSubmit(saveConfiguration)
+
+            Menu {
+                ForEach(Self.baseURLPresets, id: \.url) { preset in
+                    Button(preset.label) {
+                        configuration.openAIBaseURL = preset.url
+                        saveConfiguration()
+                    }
+                }
+            } label: {
+                Image(systemName: "list.bullet")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Preset endpoints")
+
+            GargantuaButton(
+                "Save",
+                icon: "checkmark.circle.fill",
+                tone: .ghost(GargantuaColors.safe),
+                action: saveConfiguration
+            )
+            .help("Save endpoint")
+        }
+    }
+
+    var modelRow: some View {
+        HStack(spacing: GargantuaSpacing.space3) {
+            SettingsRowIcon(systemName: "cpu", size: 14)
+
+            TextField(configuration.provider.defaultModel, text: Binding(
+                get: { configuration.model },
+                set: { configuration.model = $0 }
+            ))
+            .textFieldStyle(.plain)
+            .font(GargantuaFonts.monoData)
+            .foregroundStyle(GargantuaColors.ink)
+            .padding(.horizontal, GargantuaSpacing.space3)
+            .padding(.vertical, GargantuaSpacing.space2)
+            .background(GargantuaColors.surface3)
+            .clipShape(RoundedRectangle(cornerRadius: GargantuaRadius.small))
+            .onSubmit(saveConfiguration)
+
+            GargantuaButton(
+                "Save",
+                icon: "checkmark.circle.fill",
+                tone: .ghost(GargantuaColors.safe),
+                action: saveConfiguration
+            )
+            .help("Save model")
+        }
+    }
+
+    static var baseURLPresets: [(label: String, url: String)] {
+        [
+            ("OpenAI", "https://api.openai.com/v1"),
+            ("OpenRouter", "https://openrouter.ai/api/v1"),
+            ("Groq", "https://api.groq.com/openai/v1"),
+            ("Together", "https://api.together.xyz/v1"),
+            ("Ollama (local)", "http://localhost:11434/v1"),
+            ("LM Studio (local)", "http://localhost:1234/v1"),
+        ]
+    }
+
     // MARK: - API key row
 
     var apiKeyRow: some View {
         HStack(spacing: GargantuaSpacing.space3) {
             SettingsRowIcon(systemName: "key", size: 14)
 
-            SecureField("Anthropic API key", text: $apiKeyInput)
+            SecureField(apiKeyPlaceholder, text: $apiKeyInput)
                 .textFieldStyle(.plain)
                 .font(GargantuaFonts.monoData)
                 .foregroundStyle(GargantuaColors.ink)
@@ -56,7 +165,14 @@ extension CloudAISettingsSection {
                 isDisabled: status?.hasAPIKey != true,
                 action: { isShowingRevokeConfirm = true }
             )
-            .help("Delete the stored Anthropic key")
+            .help("Delete the stored \(configuration.provider.displayName) key")
+        }
+    }
+
+    var apiKeyPlaceholder: String {
+        switch configuration.provider {
+        case .anthropic: "Anthropic API key"
+        case .openAICompatible: "API key (leave blank for local servers)"
         }
     }
 
@@ -68,7 +184,7 @@ extension CloudAISettingsSection {
 
             VStack(alignment: .leading, spacing: GargantuaSpacing.space1) {
                 disclosureLine("Stored in macOS Keychain. Never written to disk in plaintext.")
-                disclosureLine("Endpoint: api.anthropic.com over TLS. Nothing else.")
+                disclosureLine(endpointDisclosure)
                 disclosureLine("Always sent: file paths, sizes, classifications, confidence scores.")
                 disclosureLine("Sent only with the toggle below: short snippets of file contents (4 KB max, redacted for tokens and keys).")
             }
@@ -173,6 +289,17 @@ extension CloudAISettingsSection {
         return .protected
     }
 
+    /// Endpoint line for the privacy disclosure, reflecting the active provider.
+    var endpointDisclosure: String {
+        switch configuration.provider {
+        case .anthropic:
+            return "Endpoint: api.anthropic.com over TLS. Nothing else."
+        case .openAICompatible:
+            let host = configuration.resolvedOpenAIBaseURL?.host ?? "your configured endpoint"
+            return "Endpoint: \(host) (whatever you set above). Billing + privacy are governed by that provider."
+        }
+    }
+
     var statusText: String {
         guard let status else {
             return "Checking status…"
@@ -180,21 +307,31 @@ extension CloudAISettingsSection {
         if !status.isEnabled {
             return "Off by default. Enable when you want cloud reasoning."
         }
+        if configuration.provider == .openAICompatible {
+            return "OpenAI-compatible · \(configuration.model) · billed by your provider."
+        }
         if !status.hasAPIKey {
             return "Enabled, waiting for an Anthropic API key."
         }
         return "\(formatCents(status.spentCents)) used of \(formatCents(status.monthlySpendCapCents)) this month."
     }
 
+    /// Ready to run: enabled, and — for Anthropic — a key on file. OpenAI-
+    /// compatible local servers need no key, so enabled is enough there.
+    var providerIsReady: Bool {
+        guard configuration.isEnabled else { return false }
+        if configuration.provider == .openAICompatible { return true }
+        return status?.hasAPIKey == true
+    }
+
     var statusIcon: String {
-        if status?.isReady == true { return "cloud.fill" }
+        if providerIsReady { return "cloud.fill" }
         if configuration.isEnabled { return "key.slash" }
         return "cloud"
     }
 
     var statusColor: Color {
-        if status?.isReady == true { return GargantuaColors.safe }
-        if configuration.isEnabled && status?.hasAPIKey != true { return GargantuaColors.review }
+        if providerIsReady { return GargantuaColors.safe }
         if configuration.isEnabled { return GargantuaColors.review }
         return GargantuaColors.ink4
     }
@@ -215,7 +352,7 @@ extension CloudAISettingsSection {
 
     func saveAPIKey() {
         do {
-            try keyStore.save(apiKeyInput)
+            try activeKeyStore.save(apiKeyInput)
             apiKeyInput = ""
             apiKeyStatus = "API key stored in Keychain"
         } catch {
@@ -226,13 +363,28 @@ extension CloudAISettingsSection {
 
     func revokeAPIKey() {
         do {
-            try keyStore.delete()
+            try activeKeyStore.delete()
             apiKeyInput = ""
             apiKeyStatus = "API key revoked"
         } catch {
             apiKeyStatus = error.localizedDescription
         }
         Task { await refreshStatus() }
+    }
+
+    /// Switches provider, defaulting the model/endpoint for the new provider
+    /// when they haven't been customized, then refreshes key status (each
+    /// provider keeps its own key, so the status reflects the new one).
+    func selectProvider(_ provider: CloudAIProvider) {
+        guard provider != configuration.provider else { return }
+        configuration.provider = provider
+        if provider == .openAICompatible, configuration.openAIBaseURL.isEmpty {
+            configuration.openAIBaseURL = provider.defaultBaseURL
+        }
+        configuration.model = provider.defaultModel
+        apiKeyInput = ""
+        apiKeyStatus = "Not configured"
+        saveConfiguration()
     }
 
     func saveConfiguration() {
@@ -243,7 +395,7 @@ extension CloudAISettingsSection {
     func refreshStatus() async {
         status = await CloudAIStatusProvider.snapshot(
             configurationStore: configurationStore,
-            keyStore: keyStore
+            keyStore: activeKeyStore
         )
         if status?.hasAPIKey == true, apiKeyStatus == "Not configured" {
             apiKeyStatus = "API key stored in Keychain"

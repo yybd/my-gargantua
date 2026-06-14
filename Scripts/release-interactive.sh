@@ -208,9 +208,41 @@ else
     if [ -z "$(tr -d '[:space:]' < "$NOTES_TMP")" ]; then
         warn "no user-facing commits since v${CURRENT_VERSION}; CHANGELOG unchanged"
     else
-        if ask_yn "Edit these notes before committing?" default-n; then
-            "${EDITOR:-vi}" "$NOTES_TMP"
+        # Review loop: read the AI-polished notes, optionally open the editor,
+        # re-read after editing, and only commit/tag once explicitly accepted.
+        # Nothing below this point is reversible without deleting the tag.
+        while true; do
+            printf '\n'
+            printf '%sReview %s release notes:%s\n' "$BOLD" "$NEW_VERSION" "$NC"
+            printf '  %s1)%s Accept and commit\n' "$CYAN" "$NC"
+            printf '  %s2)%s Edit in %s\n'        "$CYAN" "$NC" "${EDITOR:-vi}"
+            printf '  %s3)%s Re-show notes\n'     "$CYAN" "$NC"
+            printf '  %s4)%s Abort release\n'     "$CYAN" "$NC"
+            printf 'Choice [1-4]: '
+            IFS= read -r notes_choice
+            case "$notes_choice" in
+                1) break ;;
+                2)
+                    "${EDITOR:-vi}" "$NOTES_TMP"
+                    printf '\n%s\n\n' "${DIM}----- updated ${NEW_VERSION} notes -----${NC}"
+                    cat "$NOTES_TMP"
+                    printf '%s\n' "${DIM}----------------------------------------${NC}"
+                    [ -z "$(tr -d '[:space:]' < "$NOTES_TMP")" ] && warn "notes are now empty"
+                    ;;
+                3)
+                    printf '\n%s\n\n' "${DIM}----- proposed ${NEW_VERSION} notes -----${NC}"
+                    cat "$NOTES_TMP"
+                    printf '%s\n' "${DIM}----------------------------------------${NC}"
+                    ;;
+                4) die "release cancelled" ;;
+                *) warn "enter 1, 2, 3, or 4" ;;
+            esac
+        done
+
+        if [ -z "$(tr -d '[:space:]' < "$NOTES_TMP")" ]; then
+            die "release notes are empty; aborting before commit"
         fi
+
         # Insert the reviewed section just above the first existing release
         # heading, so it lands right under the file header.
         awk -v notesfile="$NOTES_TMP" '

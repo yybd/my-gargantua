@@ -7,47 +7,59 @@ public final class CloudAIService: ObservableObject {
     @Published public private(set) var isRunning = false
 
     let configurationStore: CloudAIConfigurationStore
-    let keyStore: any CloudAPIKeyStore
-    private let transport: any CloudAITransport
+    private let keyStoreOverride: (any CloudAPIKeyStore)?
+    private let transportOverride: (any CloudAITransport)?
     private let usageLedger: CloudAIUsageLedger
     private let logger: CloudAIRequestLogger
     let fileManager: FileManager
     let contentProvider: CloudAIRedactor.ContentProvider?
 
     /// Creates a service with injected configuration, transport, and usage dependencies.
+    /// `transport` and `keyStore` are test overrides; when nil they're resolved
+    /// per request from the configured provider (Anthropic vs OpenAI-compatible).
     public init(
         configurationStore: CloudAIConfigurationStore = CloudAIConfigurationStore(),
-        keyStore: any CloudAPIKeyStore = KeychainCloudAPIKeyStore(),
-        transport: any CloudAITransport = AnthropicMessagesTransport(),
+        keyStore: (any CloudAPIKeyStore)? = nil,
+        transport: (any CloudAITransport)? = nil,
         usageLedger: CloudAIUsageLedger = CloudAIUsageLedger(),
         logger: CloudAIRequestLogger = CloudAIRequestLogger(),
         fileManager: FileManager = .default,
         contentProvider: CloudAIRedactor.ContentProvider? = nil
     ) {
         self.configurationStore = configurationStore
-        self.keyStore = keyStore
-        self.transport = transport
+        self.keyStoreOverride = keyStore
+        self.transportOverride = transport
         self.usageLedger = usageLedger
         self.logger = logger
         self.fileManager = fileManager
         self.contentProvider = contentProvider
     }
 
-    /// Stores an Anthropic API key in the keychain.
-    public func saveAPIKey(_ apiKey: String) throws {
-        try keyStore.save(apiKey)
+    /// Keychain store for `provider`, honoring a test override.
+    func keyStore(for provider: CloudAIProvider) -> any CloudAPIKeyStore {
+        keyStoreOverride ?? CloudAPIKeyStores.store(for: provider)
     }
 
-    /// Removes the stored Anthropic API key from the keychain.
+    /// Transport for the configured provider, honoring a test override.
+    private func transport(for configuration: CloudAIConfiguration) -> any CloudAITransport {
+        transportOverride ?? CloudAITransportFactory.make(for: configuration)
+    }
+
+    /// Stores an API key for the active provider in the keychain.
+    public func saveAPIKey(_ apiKey: String) throws {
+        try keyStore(for: configurationStore.load().provider).save(apiKey)
+    }
+
+    /// Removes the stored API key for the active provider from the keychain.
     public func revokeAPIKey() throws {
-        try keyStore.delete()
+        try keyStore(for: configurationStore.load().provider).delete()
     }
 
     /// Returns the combined Cloud AI readiness and usage status.
     public func status() async -> CloudAIStatus {
         await CloudAIStatusProvider.snapshot(
             configurationStore: configurationStore,
-            keyStore: keyStore,
+            keyStore: keyStore(for: configurationStore.load().provider),
             usageLedger: usageLedger
         )
     }
@@ -61,8 +73,17 @@ public final class CloudAIService: ObservableObject {
         guard configuration.isEnabled else {
             throw CloudAIError.disabled
         }
-        guard let apiKey = try keyStore.read() else {
-            throw CloudAIError.missingAPIKey
+
+        // Anthropic requires a key; OpenAI-compatible may not (local servers
+        // like Ollama ignore auth), so a missing key there means "send none".
+        let provider = configuration.provider
+        let storedKey = try keyStore(for: provider).read()
+        let apiKey: String
+        if provider == .anthropic {
+            guard let key = storedKey else { throw CloudAIError.missingAPIKey }
+            apiKey = key
+        } else {
+            apiKey = storedKey ?? ""
         }
 
         let request = CloudAIRequest(
@@ -73,28 +94,34 @@ public final class CloudAIService: ObservableObject {
             metadata: metadata
         )
         let inputEstimate = CloudAICostEstimator.estimateTokens(for: request.systemPrompt + request.userPrompt)
-        let estimatedCost = CloudAICostEstimator.estimateCents(
-            inputTokens: inputEstimate,
-            outputTokens: request.maxTokens
-        )
-        let usage = await usageLedger.snapshot()
-        guard usage.spentCents + estimatedCost <= configuration.monthlySpendCapCents else {
-            throw CloudAIError.monthlyCapExceeded(
-                estimatedCents: estimatedCost,
-                capCents: configuration.monthlySpendCapCents,
-                spentCents: usage.spentCents
-            )
+        // The cost estimator is Anthropic-priced; only Anthropic is metered and
+        // capped here. OpenAI-compatible billing is left to the provider.
+        let isMetered = provider == .anthropic
+        let estimatedCost = isMetered
+            ? CloudAICostEstimator.estimateCents(inputTokens: inputEstimate, outputTokens: request.maxTokens)
+            : 0
+        if isMetered {
+            let usage = await usageLedger.snapshot()
+            guard usage.spentCents + estimatedCost <= configuration.monthlySpendCapCents else {
+                throw CloudAIError.monthlyCapExceeded(
+                    estimatedCents: estimatedCost,
+                    capCents: configuration.monthlySpendCapCents,
+                    spentCents: usage.spentCents
+                )
+            }
         }
 
         isRunning = true
         defer { isRunning = false }
 
         do {
-            let response = try await transport.complete(request, apiKey: apiKey)
-            let actualCost = CloudAICostEstimator.estimateCents(
-                inputTokens: response.inputTokens == 0 ? inputEstimate : response.inputTokens,
-                outputTokens: response.outputTokens
-            )
+            let response = try await transport(for: configuration).complete(request, apiKey: apiKey)
+            let actualCost = isMetered
+                ? CloudAICostEstimator.estimateCents(
+                    inputTokens: response.inputTokens == 0 ? inputEstimate : response.inputTokens,
+                    outputTokens: response.outputTokens
+                )
+                : 0
             await usageLedger.record(costCents: actualCost)
             try await logger.append(CloudAIRequestLogEntry(
                 feature: feature,

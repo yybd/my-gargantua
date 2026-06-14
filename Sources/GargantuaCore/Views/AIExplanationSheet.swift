@@ -192,7 +192,7 @@ public struct AIExplanationSheet: View {
             )
         case .cloud:
             badge(
-                label: "Cloud (Anthropic)",
+                label: "Cloud API",
                 icon: "cloud",
                 color: GargantuaColors.accent
             )

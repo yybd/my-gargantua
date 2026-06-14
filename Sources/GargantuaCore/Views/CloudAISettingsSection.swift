@@ -8,18 +8,42 @@ struct CloudAISettingsSection: View {
     @State var isShowingRevokeConfirm = false
 
     let configurationStore = CloudAIConfigurationStore()
-    let keyStore: any CloudAPIKeyStore = KeychainCloudAPIKeyStore()
+
+    /// Keychain store for the currently selected provider.
+    var activeKeyStore: any CloudAPIKeyStore {
+        CloudAPIKeyStores.store(for: configuration.provider)
+    }
+
+    private var isOpenAICompatible: Bool {
+        configuration.provider == .openAICompatible
+    }
 
     var body: some View {
         SettingsSectionContainer(
-            "Cloud AI (Anthropic)",
-            subtitle: "Hosted Claude reasoning over the public Anthropic API. Requires a user-supplied key; off by default."
+            "Cloud AI",
+            subtitle: "Hosted reasoning over a public API. Anthropic, or any OpenAI-compatible endpoint "
+                + "(OpenRouter, Groq, Ollama, LM Studio…). User-supplied key; off by default."
         ) {
             statusHeader
 
             if configuration.isEnabled {
                 Divider()
                     .overlay(GargantuaColors.border)
+
+                providerPicker
+
+                if isOpenAICompatible {
+                    baseURLRow
+                    if configuration.usesInsecureRemoteEndpoint {
+                        SettingsNoticeRow(
+                            icon: "exclamationmark.triangle.fill",
+                            message: "Plain HTTP to a non-local host: your API key and any file snippets would be sent "
+                                + "unencrypted. Use HTTPS unless this is on your LAN.",
+                            tone: .review
+                        )
+                    }
+                    modelRow
+                }
 
                 apiKeyRow
 
@@ -33,10 +57,12 @@ struct CloudAISettingsSection: View {
 
                 privacyDisclosure
                 consentToggle
-                monthlyCapStepper
+                if !isOpenAICompatible {
+                    monthlyCapStepper
+                }
                 usageRows
             } else {
-                Text("Enable to set the API key, monthly cap, and usage caps.")
+                Text("Enable to pick a provider and set the API key.")
                     .font(GargantuaFonts.caption)
                     .foregroundStyle(GargantuaColors.ink3)
             }
@@ -47,7 +73,7 @@ struct CloudAISettingsSection: View {
         }
         .sheet(isPresented: $isShowingRevokeConfirm) {
             DestructiveConfirmSheet(
-                title: "Revoke Anthropic API key?",
+                title: "Revoke \(configuration.provider.displayName) API key?",
                 message: "The key will be deleted from Keychain. Cloud AI will stop working until a new key is saved. This cannot be undone.",
                 confirmLabel: "Revoke key",
                 onCancel: { isShowingRevokeConfirm = false },

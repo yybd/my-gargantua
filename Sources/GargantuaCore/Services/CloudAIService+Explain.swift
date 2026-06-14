@@ -29,8 +29,15 @@ extension CloudAIService {
     }
 
     /// Whether the Cloud provider can run a deeper explanation right now:
-    /// enabled in settings and an API key is on file.
+    /// enabled in settings, and — for Anthropic — an API key is on file.
+    /// OpenAI-compatible endpoints may need no key (local servers), so enabled
+    /// is enough there.
     public func canExplainDeeper() -> Bool {
-        configurationStore.load().isEnabled && ((try? keyStore.hasKey()) ?? false)
+        let configuration = configurationStore.load()
+        guard configuration.isEnabled else { return false }
+        if configuration.provider == .anthropic {
+            return (try? keyStore(for: .anthropic).hasKey()) ?? false
+        }
+        return true
     }
 }

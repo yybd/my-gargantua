@@ -19,21 +19,55 @@ public enum CloudAPIKeyValidator {
     }
 }
 
+/// How a keychain key store validates a key before saving. Anthropic enforces
+/// the `sk-ant-` shape; `permissive` accepts any non-whitespace token, since
+/// OpenAI-compatible providers use wildly different key formats (and local
+/// servers may not need one at all — handled at read time, not here).
+public enum CloudAPIKeyValidation: Sendable {
+    case anthropic
+    case permissive
+
+    func accepts(_ trimmed: String) -> Bool {
+        switch self {
+        case .anthropic:
+            return CloudAPIKeyValidator.isPlausibleAnthropicKey(trimmed)
+        case .permissive:
+            return !trimmed.isEmpty && !trimmed.contains(where: \.isWhitespace)
+        }
+    }
+}
+
+/// Resolves the keychain store for each provider — separate accounts so a key
+/// for one provider survives toggling to the other and back.
+public enum CloudAPIKeyStores {
+    public static func store(for provider: CloudAIProvider) -> any CloudAPIKeyStore {
+        switch provider {
+        case .anthropic:
+            return KeychainCloudAPIKeyStore(account: "anthropic-api-key", validation: .anthropic)
+        case .openAICompatible:
+            return KeychainCloudAPIKeyStore(account: "openai-api-key", validation: .permissive)
+        }
+    }
+}
+
 public struct KeychainCloudAPIKeyStore: CloudAPIKeyStore {
     private let service: String
     private let account: String
+    private let validation: CloudAPIKeyValidation
 
     public init(
         service: String = "com.gargantua.cloud-ai",
-        account: String = "anthropic-api-key"
+        account: String = "anthropic-api-key",
+        validation: CloudAPIKeyValidation = .anthropic
     ) {
         self.service = service
         self.account = account
+        self.validation = validation
     }
 
     public func save(_ apiKey: String) throws {
         let trimmed = CloudAPIKeyValidator.normalized(apiKey)
-        guard CloudAPIKeyValidator.isPlausibleAnthropicKey(trimmed) else {
+        guard validation.accepts(trimmed) else {
             throw CloudAIError.invalidAPIKey
         }
 
