@@ -63,6 +63,7 @@ public final class CleanupEngine: Sendable {
     private let trashMover: any TrashMoving
     private let protectedRootPolicy: ProtectedRootPolicy
     private let commandActionRunner: CommandActionCleanupRouter
+    private let ollamaModelRunner: OllamaModelCleanupRouter
     /// When set, items that fail removal with a permission/ownership error are
     /// retried through the root-privileged helper. Left `nil` in headless
     /// contexts (the MCP server) and tests so they never silently escalate.
@@ -88,6 +89,7 @@ public final class CleanupEngine: Sendable {
         self.trashMover = useFinderAutomation ? FinderFirstTrashMover() : WorkspaceTrashMover()
         self.protectedRootPolicy = .loadDefault()
         self.commandActionRunner = CommandActionCleanupRouter.production()
+        self.ollamaModelRunner = OllamaModelCleanupRouter.production()
         self.privilegedHelper = privilegedHelper
         self.fileExists = { FileManager.default.fileExists(atPath: $0) }
     }
@@ -100,6 +102,7 @@ public final class CleanupEngine: Sendable {
         trashMover: any TrashMoving = FinderFirstTrashMover(),
         protectedRootPolicy: ProtectedRootPolicy = .loadDefault(),
         commandActionRunner: CommandActionCleanupRouter = .disabled,
+        ollamaModelRunner: OllamaModelCleanupRouter = .disabled,
         privilegedHelper: (any PrivilegedUninstallHelping)? = nil,
         fileExists: @escaping @Sendable (String) -> Bool = { _ in true }
     ) {
@@ -107,6 +110,7 @@ public final class CleanupEngine: Sendable {
         self.trashMover = trashMover
         self.protectedRootPolicy = protectedRootPolicy
         self.commandActionRunner = commandActionRunner
+        self.ollamaModelRunner = ollamaModelRunner
         self.privilegedHelper = privilegedHelper
         self.fileExists = fileExists
     }
@@ -177,6 +181,7 @@ public final class CleanupEngine: Sendable {
         let escalatable = results.enumerated().filter { _, result in
             !result.succeeded
                 && !result.item.isCommandAction
+                && !result.item.isOllamaModel
                 && CleanupFailureClassifier.isElevatable(result.error)
         }
         guard !escalatable.isEmpty else { return results }
@@ -238,6 +243,12 @@ public final class CleanupEngine: Sendable {
         // with the captured tool version, exit code, and arguments.
         if item.isCommandAction {
             return commandActionRunner.run(item: item, confirmationMethod: confirmationTier(for: [item]))
+        }
+
+        // Ollama models are removed through Ollama's own delete (shared blobs are
+        // GC'd by the daemon), never by trashing the manifest path.
+        if item.isOllamaModel {
+            return await ollamaModelRunner.run(item: item)
         }
 
         // Already gone. Apps like browsers wipe and recreate their cache on quit,

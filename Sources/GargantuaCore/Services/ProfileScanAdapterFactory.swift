@@ -23,6 +23,7 @@ public enum ProfileScanAdapterFactory {
                     scanRoots: scanRoots,
                     excludedPaths: aiModelExcludedPaths
                 ),
+                OllamaModelScanAdapter.loadDefaults(categories: categories),
                 GitWorktreeScanAdapter.loadDefaults(
                     categories: categories,
                     scanRoots: scanRoots
