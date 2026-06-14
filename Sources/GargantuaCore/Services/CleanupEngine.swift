@@ -75,9 +75,17 @@ public final class CleanupEngine: Sendable {
     /// - Parameter privilegedHelper: pass `XPCPrivilegedUninstallHelper()` from
     ///   interactive flows to recover root-owned items that POSIX `EPERM`
     ///   blocked. Defaults to `nil` (no escalation).
-    public init(privilegedHelper: (any PrivilegedUninstallHelping)? = nil) {
+    /// - Parameter useFinderAutomation: when `true` (the GUI default) cleanup
+    ///   asks Finder to move items to Trash, falling back to the direct Trash
+    ///   API. Headless callers (the MCP server) pass `false`: a background
+    ///   process can't satisfy an Apple Events consent prompt, so attempting it
+    ///   only spawns a doomed request before the same fallback runs anyway.
+    public init(
+        privilegedHelper: (any PrivilegedUninstallHelping)? = nil,
+        useFinderAutomation: Bool = true
+    ) {
         self.homeDirectory = FileManager.default.homeDirectoryForCurrentUser
-        self.trashMover = FinderFirstTrashMover()
+        self.trashMover = useFinderAutomation ? FinderFirstTrashMover() : WorkspaceTrashMover()
         self.protectedRootPolicy = .loadDefault()
         self.commandActionRunner = CommandActionCleanupRouter.production()
         self.privilegedHelper = privilegedHelper

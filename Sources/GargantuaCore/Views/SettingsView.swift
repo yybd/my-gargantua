@@ -131,7 +131,7 @@ public struct SettingsView: View {
     private var headerSubtitle: String {
         switch selectedTab {
         case .ai: "Engines, providers, and agent runtimes."
-        case .automation: "Appearance, scheduled scans, and menu bar visibility."
+        case .automation: "Permissions, appearance, scheduled scans, and menu bar visibility."
         case .network: "MCP transport for external clients."
         case .storage: "Scan roots, exclusions, and protected paths."
         case .license: "Activation and trial status."
@@ -157,6 +157,7 @@ public struct SettingsView: View {
             )
             AIEngineAssignmentSection()
         case .automation:
+            PermissionsSettingsSection()
             appearanceSection
             schedulingSection
             menuBarSection

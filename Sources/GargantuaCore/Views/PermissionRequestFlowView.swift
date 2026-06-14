@@ -137,9 +137,9 @@ private struct AutomationScreen: View {
             limitedMode: "Without Automation, Gargantua can still scan and use direct Trash APIs for cleanup.",
             permissionGranted: grantedState,
             primaryTitle: primaryTitle,
-            onPrimary: requestAccess,
-            secondaryLinkTitle: status == .denied ? "Open Automation settings" : nil,
-            onSecondary: status == .denied ? { openURL(automationURL) } : nil,
+            onPrimary: primaryAction,
+            secondaryLinkTitle: nil,
+            onSecondary: nil,
             manualHint: manualHint,
             isBusy: isRequesting,
             stepIndex: stepIndex,
@@ -170,7 +170,9 @@ private struct AutomationScreen: View {
     private var primaryTitle: String {
         switch status {
         case .granted: return "Allowed"
-        case .denied: return "Request Again"
+        // Once macOS records a denial it won't show the consent dialog again,
+        // so the only recovery path is System Settings — not a re-request.
+        case .denied: return "Open Automation Settings"
         case .notDetermined: return "Allow Finder Control"
         }
     }
@@ -178,10 +180,21 @@ private struct AutomationScreen: View {
     private var manualHint: String? {
         switch status {
         case .denied:
-            return "Previously denied. Re-request below, or turn Gargantua → Finder "
-                + "back on in Automation settings."
+            return "Previously denied. Turn Gargantua → Finder back on in "
+                + "Automation settings — macOS won't ask again from here."
         case .granted, .notDetermined:
             return nil
+        }
+    }
+
+    private func primaryAction() {
+        switch status {
+        case .granted:
+            break
+        case .denied:
+            openURL(automationURL)
+        case .notDetermined:
+            requestAccess()
         }
     }
 

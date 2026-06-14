@@ -231,7 +231,9 @@ dispatcher.register(tool: .listProfiles, handler: listProfilesHandler.toolHandle
 // audit writer so their budgets and forensic trails are cross-cutting.
 private let auditWriter = AuditWriter()
 private let cleanRateLimiter = MCPRateLimiter() // 1 op / 60s default
-private let cleanupEngine = CleanupEngine()
+// Headless: no GUI to satisfy a Finder Automation consent prompt, so go
+// straight to the direct Trash API instead of attempting a doomed Apple Event.
+private let cleanupEngine = CleanupEngine(useFinderAutomation: false)
 private let cleanNotificationService = MCPCleanNotificationFactory.automatic(
     gracePeriod: 5,
     log: stderrLog

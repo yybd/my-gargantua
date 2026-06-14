@@ -1,5 +1,6 @@
 import CoreServices
 import Foundation
+import OSLog
 
 /// Whether Gargantua may send Apple Events to Finder.
 ///
@@ -14,6 +15,8 @@ public enum AutomationPermission: Sendable, Equatable {
 
 /// Checks macOS TCC permissions required by Gargantua.
 public enum PermissionChecker: Sendable {
+    private static let logger = Logger(subsystem: "com.gargantua.core", category: "PermissionChecker")
+
     /// Whether the app has Full Disk Access.
     ///
     /// Probes a TCC-protected path that is only readable with FDA granted.
@@ -64,9 +67,15 @@ public enum PermissionChecker: Sendable {
             return .denied
         case OSStatus(errAEEventWouldRequireUserConsent):
             return .notDetermined
-        default:
-            // procNotFound (Finder not running) or any other transient failure:
-            // we can't conclude the user denied us, so stay undetermined.
+        case OSStatus(procNotFound):
+            // Finder isn't running, so we can't determine consent yet. Expected
+            // and recoverable — don't log, just stay undetermined.
+            return .notDetermined
+        case let other:
+            // Genuinely unexpected. Mapping to undetermined is the safe default
+            // (we can't conclude denial), but surface it so a status that should
+            // be handled doesn't silently masquerade as "not asked yet".
+            logger.error("Unexpected AEDeterminePermissionToAutomateTarget status: \(other, privacy: .public)")
             return .notDetermined
         }
     }
