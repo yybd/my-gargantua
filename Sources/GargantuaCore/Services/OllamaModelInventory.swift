@@ -133,7 +133,7 @@ private extension OllamaModelInventory {
         ) else { return [] }
         var files: [URL] = []
         for case let url as URL in enumerator
-        where (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+            where (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
             files.append(url)
         }
         return files

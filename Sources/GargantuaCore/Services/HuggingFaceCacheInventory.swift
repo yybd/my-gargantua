@@ -243,7 +243,7 @@ public struct HuggingFaceCacheInventory: Sendable {
         ) else { return [] }
         var revisions: Set<String> = []
         for case let url as URL in enumerator
-        where (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+            where (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
             if let content = try? String(contentsOf: url, encoding: .utf8) {
                 let hash = content.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !hash.isEmpty { revisions.insert(hash) }
@@ -262,7 +262,7 @@ public struct HuggingFaceCacheInventory: Sendable {
         ) else { return [] }
         var names: [String] = []
         for case let url as URL in enumerator
-        where (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
+            where (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
             if let target = try? fm.destinationOfSymbolicLink(atPath: url.path) {
                 names.append((target as NSString).lastPathComponent)
             }
