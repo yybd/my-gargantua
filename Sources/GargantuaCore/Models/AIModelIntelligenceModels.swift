@@ -1,22 +1,39 @@
 import Foundation
 
+/// How a store maps on-disk files to user-facing models, which decides the
+/// safe unit and mechanism of deletion.
+///
+/// - `flatFile`: one weight file ≈ one model (LM Studio, ComfyUI, SD-WebUI,
+///   Pinokio). Per-file path deletion is safe.
+/// - `managedManifest`: a named model is a manifest plus shared content-addressed
+///   blobs (Ollama, Hugging Face). Deleting a blob by path dangles other
+///   manifests, so these stores are never surfaced as path-delete candidates by
+///   the intelligence adapter — a manifest-aware pass owns them instead.
+public enum AIModelStoreKind: Sendable, Equatable {
+    case flatFile
+    case managedManifest
+}
+
 /// A known place where local AI tools store downloaded model weights.
 public struct AIModelStoreDefinition: Sendable, Equatable, Identifiable {
     public let id: String
     public let displayName: String
     public let roots: [URL]
     public let includeExtensionlessLargeFiles: Bool
+    public let kind: AIModelStoreKind
 
     public init(
         id: String,
         displayName: String,
         roots: [URL],
-        includeExtensionlessLargeFiles: Bool = false
+        includeExtensionlessLargeFiles: Bool = false,
+        kind: AIModelStoreKind = .flatFile
     ) {
         self.id = id
         self.displayName = displayName
         self.roots = roots
         self.includeExtensionlessLargeFiles = includeExtensionlessLargeFiles
+        self.kind = kind
     }
 }
 

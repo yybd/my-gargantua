@@ -100,7 +100,11 @@ private extension AIModelIntelligenceScanAdapter {
     private func uniqueCandidates() -> [AIModelFileCandidate] {
         var byPath: [String: AIModelFileCandidate] = [:]
 
-        for store in policy.knownStores {
+        // Managed-manifest stores (Ollama, Hugging Face) map files to models via
+        // a manifest over shared content-addressed blobs. Deleting a blob by path
+        // dangles other manifests, so they are never surfaced as path-delete
+        // duplicate/orphan candidates here — a manifest-aware pass owns them.
+        for store in policy.knownStores where store.kind == .flatFile {
             for root in store.roots {
                 for candidate in scan(root: root, store: store) {
                     byPath[AIModelScanPolicy.normalizedPath(candidate.path)] = candidate

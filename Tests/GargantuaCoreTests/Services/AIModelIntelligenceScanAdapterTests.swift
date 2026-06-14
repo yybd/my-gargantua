@@ -108,6 +108,45 @@ struct AIModelIntelligenceScanAdapterTests {
         #expect(results.allSatisfy { !$0.path.hasSuffix("archive.zip") })
     }
 
+    @Test("managed-manifest stores never surface path-delete candidates")
+    func managedManifestStoresAreNeverPathDeleteCandidates() async throws {
+        let fixture = try FixtureTree()
+        // Two Ollama blob stores holding an identical blob: under flatFile rules
+        // this would emit a duplicate group. Marked managedManifest, the adapter
+        // must not walk them into path-delete output at all.
+        let primary = try fixture.makeDir("Ollama/models/blobs")
+        let secondary = try fixture.makeDir("Ollama-copy/models/blobs")
+        try fixture.makeFile("Ollama/models/blobs/sha256-deadbeef", byteCount: 512)
+        try fixture.makeFile("Ollama-copy/models/blobs/sha256-deadbeef", byteCount: 512)
+
+        let adapter = makeAdapter(
+            knownStores: [
+                AIModelStoreDefinition(
+                    id: "ollama-primary",
+                    displayName: "Ollama",
+                    roots: [primary],
+                    includeExtensionlessLargeFiles: true,
+                    kind: .managedManifest
+                ),
+                AIModelStoreDefinition(
+                    id: "ollama-secondary",
+                    displayName: "Ollama Copy",
+                    roots: [secondary],
+                    includeExtensionlessLargeFiles: true,
+                    kind: .managedManifest
+                ),
+            ],
+            orphanRoots: []
+        )
+
+        let findings = adapter.discoverFindings()
+        let results = try await adapter.scan(progress: nil)
+
+        #expect(findings.duplicateGroups.isEmpty)
+        #expect(findings.orphanCandidates.isEmpty)
+        #expect(results.isEmpty)
+    }
+
     @Test("user exclusions suppress orphan and duplicate model candidates")
     func userExclusionsSuppressCandidates() async throws {
         let fixture = try FixtureTree()

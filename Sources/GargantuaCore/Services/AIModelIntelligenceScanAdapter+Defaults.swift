@@ -13,7 +13,8 @@ extension AIModelIntelligenceScanAdapter {
                 id: "ollama",
                 displayName: "Ollama",
                 roots: [home(".ollama/models")],
-                includeExtensionlessLargeFiles: true
+                includeExtensionlessLargeFiles: true,
+                kind: .managedManifest
             ),
             AIModelStoreDefinition(
                 id: "lm-studio",
@@ -31,7 +32,8 @@ extension AIModelIntelligenceScanAdapter {
                 roots: [
                     home(".cache/huggingface"),
                     home("Library/Caches/huggingface"),
-                ]
+                ],
+                kind: .managedManifest
             ),
             AIModelStoreDefinition(
                 id: "comfyui",
