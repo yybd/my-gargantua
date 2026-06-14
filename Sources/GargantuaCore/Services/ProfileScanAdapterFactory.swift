@@ -24,6 +24,7 @@ public enum ProfileScanAdapterFactory {
                     excludedPaths: aiModelExcludedPaths
                 ),
                 OllamaModelScanAdapter.loadDefaults(categories: categories),
+                HuggingFaceModelScanAdapter.loadDefaults(categories: categories),
                 GitWorktreeScanAdapter.loadDefaults(
                     categories: categories,
                     scanRoots: scanRoots
