@@ -55,7 +55,9 @@ public struct CodexScheduledAgentAuditHook: ScheduledScanAgentAuditHook {
 /// `maintenance` job, re-read on every run so changing the assignment in
 /// Settings takes effect without rebuilding the scheduler. Claude Code is the
 /// default; Codex is selected when the user assigns `.codex` to maintenance.
-public struct MaintenanceEngineAuditHook: ScheduledScanAgentAuditHook {
+// `@unchecked Sendable`: the only stored non-Sendable member is `UserDefaults`,
+// which Apple documents as thread-safe; the hooks are `Sendable` already.
+public struct MaintenanceEngineAuditHook: ScheduledScanAgentAuditHook, @unchecked Sendable {
     private let defaults: UserDefaults
     private let claudeHook: any ScheduledScanAgentAuditHook
     private let codexHook: any ScheduledScanAgentAuditHook
