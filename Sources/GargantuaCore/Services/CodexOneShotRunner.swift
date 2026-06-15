@@ -66,23 +66,36 @@ public struct CodexOneShotRunner: @unchecked Sendable {
 
                 let pipes = CodexSubprocessPipes(stdout: stdoutPipe, stderr: stderrPipe)
                 let buffers = CodexSubprocessBuffers(stdout: stdoutBuffer, stderr: stderrBuffer)
+                let termination = CodexTerminationInfo()
                 configure(process: process, executable: executable, arguments: arguments, pipes: pipes)
-                attachReadabilityHandlers(pipes: pipes, buffers: buffers)
-                process.terminationHandler = makeTerminationHandler(
-                    pipes: pipes,
-                    buffers: buffers,
-                    resumed: resumed,
-                    continuation: continuation
-                )
-                spawnTimeoutWatcher(process: process, resumed: resumed, continuation: continuation)
+
+                // Completion is gated on EOF of BOTH pipes AND process exit, so
+                // no buffered stderr can be missed by a snapshot that raced an
+                // in-flight readability append.
+                let group = DispatchGroup()
+                group.enter() // stdout EOF
+                group.enter() // stderr EOF
+                group.enter() // process exit
+                attachReadabilityHandlers(pipes: pipes, buffers: buffers, group: group)
+                process.terminationHandler = { proc in
+                    termination.recordExit(status: proc.terminationStatus, reason: proc.terminationReason)
+                    group.leave()
+                }
+                group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
+                    guard resumed.takeIfFalse() else { return }
+                    self.finish(buffers: buffers, termination: termination, continuation: continuation)
+                }
 
                 do {
                     try process.run()
                 } catch {
-                    if resumed.takeIfFalse() {
-                        continuation.resume(throwing: error)
-                    }
+                    termination.recordLaunchError(error)
+                    try? pipes.stdout.fileHandleForWriting.close()
+                    try? pipes.stderr.fileHandleForWriting.close()
+                    group.leave()
                 }
+
+                spawnTimeoutWatcher(process: process, resumed: resumed, continuation: continuation)
             }
         } onCancel: {
             processBox.process?.terminate()
@@ -107,11 +120,14 @@ public struct CodexOneShotRunner: @unchecked Sendable {
         process.standardError = pipes.stderr
     }
 
-    private func attachReadabilityHandlers(pipes: CodexSubprocessPipes, buffers: CodexSubprocessBuffers) {
+    /// Drain each pipe asynchronously and `leave()` the group on EOF, so the
+    /// outcome is only built once every byte has landed.
+    private func attachReadabilityHandlers(pipes: CodexSubprocessPipes, buffers: CodexSubprocessBuffers, group: DispatchGroup) {
         pipes.stdout.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
             if chunk.isEmpty {
                 handle.readabilityHandler = nil
+                group.leave()
             } else {
                 buffers.stdout.append(chunk)
             }
@@ -120,42 +136,34 @@ public struct CodexOneShotRunner: @unchecked Sendable {
             let chunk = handle.availableData
             if chunk.isEmpty {
                 handle.readabilityHandler = nil
+                group.leave()
             } else {
                 buffers.stderr.append(chunk)
             }
         }
     }
 
-    private func makeTerminationHandler(
-        pipes: CodexSubprocessPipes,
+    /// Resolve the run once both pipes have hit EOF and the process has exited.
+    private func finish(
         buffers: CodexSubprocessBuffers,
-        resumed: CodexAtomicFlag,
+        termination: CodexTerminationInfo,
         continuation: CheckedContinuation<Void, Error>
-    ) -> @Sendable (Process) -> Void {
-        return { proc in
-            pipes.stdout.fileHandleForReading.readabilityHandler = nil
-            pipes.stderr.fileHandleForReading.readabilityHandler = nil
-            if let remaining = try? pipes.stdout.fileHandleForReading.readToEnd() {
-                buffers.stdout.append(remaining)
-            }
-            if let remaining = try? pipes.stderr.fileHandleForReading.readToEnd() {
-                buffers.stderr.append(remaining)
-            }
-            guard resumed.takeIfFalse() else { return }
-            let status = proc.terminationStatus
-            let stderrString = String(data: buffers.stderr.snapshot(), encoding: .utf8) ?? ""
-            codexOneShotLogger.error(
-                "codex one-shot exit: status=\(status) stderr-bytes=\(stderrString.count)"
-            )
-            if status == 0, proc.terminationReason == .exit {
-                continuation.resume(returning: ())
-            } else {
-                codexOneShotLogger.error("codex CLI stderr: \(stderrString.prefix(600), privacy: .public)")
-                continuation.resume(throwing: CodexOneShotError.cliFailed(
-                    exitCode: Int(status),
-                    stderr: stderrString
-                ))
-            }
+    ) {
+        if let launchError = termination.launchError {
+            continuation.resume(throwing: launchError)
+            return
+        }
+        let status = termination.status
+        let stderrString = String(data: buffers.stderr.snapshot(), encoding: .utf8) ?? ""
+        codexOneShotLogger.error("codex one-shot exit: status=\(status) stderr-bytes=\(stderrString.count)")
+        if status == 0, termination.reason == .exit {
+            continuation.resume(returning: ())
+        } else {
+            codexOneShotLogger.error("codex CLI stderr: \(stderrString.prefix(600), privacy: .public)")
+            continuation.resume(throwing: CodexOneShotError.cliFailed(
+                exitCode: Int(status),
+                stderr: stderrString
+            ))
         }
     }
 
@@ -186,6 +194,27 @@ public enum CodexOneShotError: Error, Equatable {
 
 private final class CodexProcessBox: @unchecked Sendable {
     var process: Process?
+}
+
+/// Lock-guarded subprocess outcome, written by the termination handler or the
+/// launch-failure path and read once by `finish` from the group's `notify`.
+private final class CodexTerminationInfo: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _status: Int32 = 0
+    private var _reason: Process.TerminationReason?
+    private var _launchError: Error?
+
+    func recordExit(status: Int32, reason: Process.TerminationReason) {
+        lock.lock(); _status = status; _reason = reason; lock.unlock()
+    }
+
+    func recordLaunchError(_ error: Error) {
+        lock.lock(); _launchError = error; lock.unlock()
+    }
+
+    var status: Int32 { lock.lock(); defer { lock.unlock() }; return _status }
+    var reason: Process.TerminationReason? { lock.lock(); defer { lock.unlock() }; return _reason }
+    var launchError: Error? { lock.lock(); defer { lock.unlock() }; return _launchError }
 }
 
 private struct CodexSubprocessPipes {

@@ -72,36 +72,43 @@ public struct ClaudeCodeOneShotRunner: @unchecked Sendable {
             try await withCheckedThrowingContinuation { continuation in
                 let process = processFactory()
                 processBox.process = process
-                let stdoutPipe = Pipe()
-                let stderrPipe = Pipe()
-                let stdoutBuffer = DataBuffer()
-                let stderrBuffer = DataBuffer()
+                let pipes = SubprocessPipes(stdout: Pipe(), stderr: Pipe())
+                let buffers = SubprocessBuffers(stdout: DataBuffer(), stderr: DataBuffer())
                 let resumed = AtomicFlag()
+                let termination = TerminationInfo()
+                configure(process: process, executable: executable, arguments: arguments, pipes: pipes)
 
-                let pipes = SubprocessPipes(stdout: stdoutPipe, stderr: stderrPipe)
-                let buffers = SubprocessBuffers(stdout: stdoutBuffer, stderr: stderrBuffer)
-                configure(
-                    process: process,
-                    executable: executable,
-                    arguments: arguments,
-                    pipes: pipes
-                )
-                attachReadabilityHandlers(pipes: pipes, buffers: buffers)
-                process.terminationHandler = makeTerminationHandler(
-                    pipes: pipes,
-                    buffers: buffers,
-                    resumed: resumed,
-                    continuation: continuation
-                )
-                spawnTimeoutWatcher(process: process, resumed: resumed, continuation: continuation)
+                // Completion is gated on EOF of BOTH pipes AND process exit, so
+                // no buffered output can be missed. The old design snapshotted
+                // in the terminationHandler, which could race an in-flight
+                // readability append and drop the final stderr/stdout bytes.
+                let group = DispatchGroup()
+                group.enter() // stdout EOF
+                group.enter() // stderr EOF
+                group.enter() // process exit
+                attachReadabilityHandlers(pipes: pipes, buffers: buffers, group: group)
+                process.terminationHandler = { proc in
+                    termination.recordExit(status: proc.terminationStatus, reason: proc.terminationReason)
+                    group.leave()
+                }
+                group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
+                    guard resumed.takeIfFalse() else { return }
+                    self.finish(buffers: buffers, termination: termination, continuation: continuation)
+                }
 
                 do {
                     try process.run()
                 } catch {
-                    if resumed.takeIfFalse() {
-                        continuation.resume(throwing: error)
-                    }
+                    termination.recordLaunchError(error)
+                    // The child never started, so Foundation won't close the
+                    // parent write-ends; close them so the readers see EOF, and
+                    // balance the process-exit enter that will never fire.
+                    try? pipes.stdout.fileHandleForWriting.close()
+                    try? pipes.stderr.fileHandleForWriting.close()
+                    group.leave()
                 }
+
+                spawnTimeoutWatcher(process: process, resumed: resumed, continuation: continuation)
             }
         } onCancel: {
             processBox.process?.terminate()
@@ -129,11 +136,16 @@ public struct ClaudeCodeOneShotRunner: @unchecked Sendable {
     /// a >16KB response (Sonnet on a busy folder hits this fast) fills
     /// the pipe buffer, the CLI blocks on write, and the process never
     /// exits.
-    private func attachReadabilityHandlers(pipes: SubprocessPipes, buffers: SubprocessBuffers) {
+    /// Drain the pipes asynchronously while the process runs (otherwise a
+    /// >16KB response fills the pipe buffer, the CLI blocks on write, and the
+    /// process never exits). Each handler `leave()`s the group exactly once on
+    /// EOF (empty chunk), so completion can wait until every byte has landed.
+    private func attachReadabilityHandlers(pipes: SubprocessPipes, buffers: SubprocessBuffers, group: DispatchGroup) {
         pipes.stdout.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
             if chunk.isEmpty {
                 handle.readabilityHandler = nil
+                group.leave()
             } else {
                 buffers.stdout.append(chunk)
             }
@@ -142,52 +154,43 @@ public struct ClaudeCodeOneShotRunner: @unchecked Sendable {
             let chunk = handle.availableData
             if chunk.isEmpty {
                 handle.readabilityHandler = nil
+                group.leave()
             } else {
                 buffers.stderr.append(chunk)
             }
         }
     }
 
-    private func makeTerminationHandler(
-        pipes: SubprocessPipes,
+    /// Build the typed result once both pipes have hit EOF and the process has
+    /// exited. Runs from the group's `notify`, so the buffers are fully drained.
+    private func finish(
         buffers: SubprocessBuffers,
-        resumed: AtomicFlag,
+        termination: TerminationInfo,
         continuation: CheckedContinuation<String, Error>
-    ) -> @Sendable (Process) -> Void {
-        return { proc in
-            pipes.stdout.fileHandleForReading.readabilityHandler = nil
-            pipes.stderr.fileHandleForReading.readabilityHandler = nil
-            if let remaining = try? pipes.stdout.fileHandleForReading.readToEnd() {
-                buffers.stdout.append(remaining)
-            }
-            if let remaining = try? pipes.stderr.fileHandleForReading.readToEnd() {
-                buffers.stderr.append(remaining)
-            }
-
-            guard resumed.takeIfFalse() else { return }
-            let stdout = buffers.stdout.snapshot()
-            let stderr = buffers.stderr.snapshot()
-            let status = proc.terminationStatus
-            let reason = proc.terminationReason
-            oneShotLogger.error(
-                "claude one-shot exit: status=\(status) reason=\(reason.rawValue) stdout-bytes=\(stdout.count) stderr-bytes=\(stderr.count)"
-            )
-            if status == 0, reason == .exit {
-                if let text = String(data: stdout, encoding: .utf8), !text.isEmpty {
-                    continuation.resume(returning: text)
-                } else {
-                    continuation.resume(throwing: ClaudeCodeOneShotError.emptyResponse)
-                }
+    ) {
+        if let launchError = termination.launchError {
+            continuation.resume(throwing: launchError)
+            return
+        }
+        let stdout = buffers.stdout.snapshot()
+        let stderr = buffers.stderr.snapshot()
+        let status = termination.status
+        oneShotLogger.error(
+            "claude one-shot exit: status=\(status) stdout-bytes=\(stdout.count) stderr-bytes=\(stderr.count)"
+        )
+        if status == 0, termination.reason == .exit {
+            if let text = String(data: stdout, encoding: .utf8), !text.isEmpty {
+                continuation.resume(returning: text)
             } else {
-                let stderrString = String(data: stderr, encoding: .utf8) ?? ""
-                oneShotLogger.error(
-                    "claude CLI stderr: \(stderrString.prefix(600), privacy: .public)"
-                )
-                continuation.resume(throwing: ClaudeCodeOneShotError.cliFailed(
-                    exitCode: Int(status),
-                    stderr: stderrString
-                ))
+                continuation.resume(throwing: ClaudeCodeOneShotError.emptyResponse)
             }
+        } else {
+            let stderrString = String(data: stderr, encoding: .utf8) ?? ""
+            oneShotLogger.error("claude CLI stderr: \(stderrString.prefix(600), privacy: .public)")
+            continuation.resume(throwing: ClaudeCodeOneShotError.cliFailed(
+                exitCode: Int(status),
+                stderr: stderrString
+            ))
         }
     }
 
@@ -229,6 +232,28 @@ public enum ClaudeCodeOneShotError: Error, Equatable {
 /// callback can reach it from outside the continuation closure.
 private final class ProcessBox: @unchecked Sendable {
     var process: Process?
+}
+
+/// Lock-guarded outcome of the subprocess, written by either the termination
+/// handler (normal/abnormal exit) or the launch-failure path, and read once by
+/// `finish` from the group's `notify`.
+private final class TerminationInfo: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _status: Int32 = 0
+    private var _reason: Process.TerminationReason?
+    private var _launchError: Error?
+
+    func recordExit(status: Int32, reason: Process.TerminationReason) {
+        lock.lock(); _status = status; _reason = reason; lock.unlock()
+    }
+
+    func recordLaunchError(_ error: Error) {
+        lock.lock(); _launchError = error; lock.unlock()
+    }
+
+    var status: Int32 { lock.lock(); defer { lock.unlock() }; return _status }
+    var reason: Process.TerminationReason? { lock.lock(); defer { lock.unlock() }; return _reason }
+    var launchError: Error? { lock.lock(); defer { lock.unlock() }; return _launchError }
 }
 
 private struct SubprocessPipes {
