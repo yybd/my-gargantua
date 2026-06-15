@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-06-15
+
+### Added
+
+- **"Why?" affordance and plain-language reasons on failed rows.** Failed items now show a human-readable explanation (e.g. "needs the privileged helper", "file is in use") and a "Why?" link that opens the same reasoning sheet used during scanning.
+
+- **Privileged-helper row in Permissions settings.** Settings → Permissions surfaces the helper's current status alongside Full Disk Access and Finder Automation, letting users grant approval before a clean hits a system-owned file.
+
+- **npm and yarn cleanup support.** The Developer Tools panel now discovers and measures npm and yarn (classic) caches alongside pnpm and Go, with native preview and clean commands for each.
+
+### Fixed
+
+- **Competing AI call-to-action buttons suppressed.** When a deeper AI provider is configured, the "Enable AI" button and rule-based note no longer appear alongside "Explain deeper" — the two competing accents conflicted and the label was misleading when AI was already active.
+
+- **AI Models scan list now syncs on retry.** Recovered items were pruned from the summary but lingered in the AI Models background list; the scan list now removes them in step with the summary.
+
+- **Node-shim interpreter resolution for pnpm and other Node-managed tools.** GUI-launched tools like pnpm re-exec `node` from their shim directory; Gargantua now prepends that directory (and the resolved binary's own directory) to the child PATH so the interpreter resolves correctly under launchd's minimal environment.
+
+- **AI one-shot runner no longer drops final stderr bytes.** The Claude and Codex runners now wait for both stdout and stderr to reach EOF before reading the process exit code, closing a race that intermittently produced empty stderr and spurious exit-7 failures.
+
 ## [0.4.1] - 2026-06-15
 
 ### Added
