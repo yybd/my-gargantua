@@ -73,6 +73,18 @@ public struct MenuBarStatusSnapshot: Equatable, Sendable {
         pendingAlertCount > 0
     }
 
+    /// True when there's no scan data to show yet — no background scan has run
+    /// and the user hasn't triggered a Quick Scan. Drives the empty-state CTA
+    /// instead of a wall of zeroed-out metrics.
+    public var isEmpty: Bool {
+        !isScanning
+            && errorMessage == nil
+            && lastScanDate == nil
+            && reclaimableBytes == 0
+            && pendingAlertCount == 0
+            && pendingItemCount == 0
+    }
+
     public var accessibilitySummary: String {
         if isScanning {
             return "Gargantua menu bar, quick scan running"

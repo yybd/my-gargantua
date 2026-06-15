@@ -278,13 +278,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     static func activateMainWindow() {
-        guard let window = findMainWindow() else {
+        if !activateExistingMainWindow() {
             NSApplication.shared.activate(ignoringOtherApps: true)
-            return
         }
+    }
+
+    /// Brings the existing main window to the front without creating a new one.
+    /// Returns `false` when no main window exists (e.g. the user closed it), so
+    /// callers can decide whether to open a fresh one instead of blindly calling
+    /// `openWindow` — which on a `WindowGroup` spawns a duplicate window/tab.
+    @discardableResult
+    static func activateExistingMainWindow() -> Bool {
+        guard let window = findMainWindow() else { return false }
         window.deminiaturize(nil)
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
+        return true
     }
 
     private func activateMainWindow() {
@@ -303,9 +312,14 @@ private struct GargantuaMenuBarSceneContent: View {
 
     var body: some View {
         MenuBarWidgetView(model: model) {
-            openWindow(id: "main")
-            DispatchQueue.main.async {
-                AppDelegate.activateMainWindow()
+            // Focus the existing main window if it's still open; only fall back
+            // to openWindow when there's none, so we don't spawn a duplicate
+            // window/tab every time the user taps Open.
+            if !AppDelegate.activateExistingMainWindow() {
+                openWindow(id: "main")
+                DispatchQueue.main.async {
+                    AppDelegate.activateMainWindow()
+                }
             }
         }
     }

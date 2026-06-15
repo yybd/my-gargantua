@@ -39,10 +39,14 @@ public struct MenuBarWidgetView: View {
         VStack(alignment: .leading, spacing: GargantuaSpacing.space4) {
             header
 
-            VStack(alignment: .leading, spacing: GargantuaSpacing.space2) {
-                metricRow(icon: "externaldrive", label: "Reclaimable", value: model.snapshot.reclaimableDisplay)
-                metricRow(icon: "bell", label: "Alerts", value: model.snapshot.alertsDisplay)
-                metricRow(icon: "calendar", label: "Last Scan", value: model.snapshot.lastScanDisplay)
+            if model.snapshot.isEmpty {
+                emptyState
+            } else {
+                VStack(alignment: .leading, spacing: GargantuaSpacing.space2) {
+                    metricRow(icon: "externaldrive", label: "Reclaimable", value: model.snapshot.reclaimableDisplay)
+                    metricRow(icon: "bell", label: "Alerts", value: model.snapshot.alertsDisplay)
+                    metricRow(icon: "calendar", label: "Last Scan", value: model.snapshot.lastScanDisplay)
+                }
             }
 
             if let error = model.snapshot.errorMessage {
@@ -89,6 +93,22 @@ public struct MenuBarWidgetView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(model.snapshot.accessibilitySummary)
+    }
+
+    private var emptyState: some View {
+        HStack(alignment: .top, spacing: GargantuaSpacing.space2) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13))
+                .foregroundStyle(GargantuaColors.ink3)
+                .frame(width: 18, alignment: .center)
+
+            Text("Run a quick scan to see reclaimable space.")
+                .font(GargantuaFonts.caption)
+                .foregroundStyle(GargantuaColors.ink2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Run a quick scan to see reclaimable space")
     }
 
     private var header: some View {
