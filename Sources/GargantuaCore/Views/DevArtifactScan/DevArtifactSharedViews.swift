@@ -62,7 +62,7 @@ private struct DevArtifactToolNativeLogoStrip: View {
                 )
             }
         }
-        .frame(width: 112, alignment: .leading)
+        .fixedSize(horizontal: true, vertical: false)
         .accessibilityHidden(true)
     }
 }
