@@ -8,13 +8,18 @@ public struct MenuBarStatusLabel: View {
     }
 
     public var body: some View {
-        GargantuaBrandMark()
-            .frame(width: 18, height: 18)
+        // The menu bar wants a monochrome *template* image; a full-colour
+        // brand-mark PNG renders as a zero-width/blank item and the widget
+        // silently never appears even when enabled. An SF Symbol is the
+        // reliable, HIG-correct choice and auto-tints to the menu bar.
+        Image(systemName: "hurricane")
+            .symbolRenderingMode(.monochrome)
             .overlay(alignment: .topTrailing) {
                 if snapshot.pendingAlertCount > 0 {
                     Circle()
                         .fill(GargantuaColors.accent)
                         .frame(width: 6, height: 6)
+                        .offset(x: 3, y: -3)
                 }
             }
             .accessibilityLabel(snapshot.accessibilitySummary)
