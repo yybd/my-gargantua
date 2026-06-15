@@ -28,9 +28,10 @@ The project is built as a Swift Package with four executables:
 ## Install
 
 ```sh
-brew tap inceptyon-labs/tap
-brew install --cask gargantua
+brew install --cask inceptyon-labs/tap/gargantua
 ```
+
+The fully-qualified name is required on Homebrew 6.0+, which gates third-party taps behind its new Tap Trust check. Installing by this name auto-trusts the cask, so no separate `brew trust` step is needed.
 
 This pulls the signed, notarized DMG from the latest GitHub Release. Updates after install are delivered through the in-app Sparkle channel, so the cask only tracks `:latest`. Apple Silicon, macOS 14 (Sonoma) or newer.
 
