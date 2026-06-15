@@ -28,6 +28,29 @@ struct ProcessSpawnerEnvironmentTests {
         #expect(env["PATH"] == existing)
     }
 
+    @Test("prepends the symlink target's directory when the binary is a shim")
+    func prependsSymlinkTargetDir() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("gargantua-shim-\(getpid())")
+        let realBin = root.appendingPathComponent("real/bin", isDirectory: true)
+        let shimBin = root.appendingPathComponent("shim", isDirectory: true)
+        try fm.createDirectory(at: realBin, withIntermediateDirectories: true)
+        try fm.createDirectory(at: shimBin, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        // The real npm lives in real/bin (alongside node); shim/npm is a
+        // symlink to it. PATH must include real/bin, not just shim.
+        let target = realBin.appendingPathComponent("npm")
+        try "".write(to: target, atomically: true, encoding: .utf8)
+        let shim = shimBin.appendingPathComponent("npm")
+        try fm.createSymbolicLink(at: shim, withDestinationURL: target)
+
+        let env = ProcessSpawner.childEnvironment(for: shim)
+        let path = env["PATH"] ?? ""
+        #expect(path.split(separator: ":").contains(Substring(realBin.resolvingSymlinksInPath().path)))
+        #expect(path.split(separator: ":").contains(Substring(shimBin.path)))
+    }
+
     @Test("end-to-end: a node-shim-style sibling resolves via env")
     func siblingResolvesViaEnv() throws {
         let fm = FileManager.default

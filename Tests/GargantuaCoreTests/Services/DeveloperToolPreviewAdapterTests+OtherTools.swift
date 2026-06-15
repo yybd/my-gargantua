@@ -155,6 +155,40 @@ extension DeveloperToolPreviewAdapterTests {
         #expect(preview.reclaimableBytes > 0)
     }
 
+    @Test("npm preview leaves the estimate unknown when the cache path is a filesystem root")
+    func npmPreviewRejectsUnsafeCacheRoot() throws {
+        let npm = try makeScratchBinary(name: "npm")
+        defer { try? FileManager.default.removeItem(at: npm.deletingLastPathComponent()) }
+
+        let runner = StubRunner(outputs: [
+            "npm config get cache": ProcessOutput(stdout: "/\n", stderr: "", exitCode: 0),
+        ])
+        let adapter = DeveloperToolPreviewAdapter(
+            resolver: DeveloperToolBinaryResolver(environment: [
+                DeveloperToolBinaryResolver.npmEnvVarName: npm.path,
+            ]),
+            runner: runner
+        )
+
+        let preview = try adapter.preview(.npm)
+
+        #expect(preview.items.map(\.id) == ["npm-cache"])
+        // "/" must not be walked — estimate stays unknown rather than 0-or-bogus.
+        #expect(preview.items.first?.reclaimableBytes == nil)
+    }
+
+    @Test("isSafeCacheRoot accepts real caches and rejects roots and home")
+    func isSafeCacheRootBoundaries() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        #expect(DeveloperToolPreviewAdapter.isSafeCacheRoot(at: home.appendingPathComponent(".npm")))
+        #expect(DeveloperToolPreviewAdapter.isSafeCacheRoot(
+            at: home.appendingPathComponent("Library/Caches/Yarn")))
+        #expect(!DeveloperToolPreviewAdapter.isSafeCacheRoot(at: URL(fileURLWithPath: "/")))
+        #expect(!DeveloperToolPreviewAdapter.isSafeCacheRoot(at: home))
+        #expect(!DeveloperToolPreviewAdapter.isSafeCacheRoot(at: URL(fileURLWithPath: "/Volumes/Data")))
+        #expect(!DeveloperToolPreviewAdapter.isSafeCacheRoot(at: URL(fileURLWithPath: "/Users")))
+    }
+
     @Test("Go preview reads shared cache locations")
     func goPreview() throws {
         let go = try makeScratchBinary(name: "go")

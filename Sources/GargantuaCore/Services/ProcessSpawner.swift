@@ -137,16 +137,29 @@ enum ProcessSpawner {
     /// layouts, so prepending the resolved binary's directory makes it
     /// resolvable. Native binaries (brew, docker, go, cargo, xcrun) are
     /// unaffected — they don't shell out to siblings via `env`.
+    ///
+    /// Both the literal directory *and* the symlink-resolved directory are
+    /// prepended: a shim such as `~/.local/bin/npm` may be a symlink whose
+    /// target's directory (e.g. `…/Cellar/node/<v>/bin`) is where `node`
+    /// actually lives, while `~/.local/bin` holds only the shim.
     static func childEnvironment(for executable: URL) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
-        let binDir = executable.deletingLastPathComponent().path
-        guard !binDir.isEmpty, binDir != "/" else { return environment }
 
-        let existing = environment["PATH"] ?? ""
-        let segments = existing.split(separator: ":", omittingEmptySubsequences: true).map(String.init)
-        guard !segments.contains(binDir) else { return environment }
+        let candidateDirs = [
+            executable.deletingLastPathComponent().path,
+            executable.resolvingSymlinksInPath().deletingLastPathComponent().path,
+        ]
 
-        environment["PATH"] = existing.isEmpty ? binDir : "\(binDir):\(existing)"
+        var path = environment["PATH"] ?? ""
+        for binDir in candidateDirs where !binDir.isEmpty && binDir != "/" {
+            let segments = path.split(separator: ":", omittingEmptySubsequences: true).map(String.init)
+            guard !segments.contains(binDir) else { continue }
+            path = path.isEmpty ? binDir : "\(binDir):\(path)"
+        }
+
+        if !path.isEmpty {
+            environment["PATH"] = path
+        }
         return environment
     }
 

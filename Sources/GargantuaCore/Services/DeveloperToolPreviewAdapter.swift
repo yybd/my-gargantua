@@ -116,12 +116,30 @@ public struct DeveloperToolPreviewAdapter: Sendable {
                     return item
                 }
                 let url = URL(fileURLWithPath: path)
-                let bytes = directoryExists(at: url) ? directorySize(at: url) : 0
-                return item.withReclaimableBytes(bytes)
+                // A misconfigured tool could report a cache at a filesystem
+                // root (`/`, `$HOME`, a volume mount). Refuse to recursively
+                // size those — leave the estimate unknown rather than walking
+                // the whole disk or silently reporting a bogus partial total.
+                guard isSafeCacheRoot(at: url), directoryExists(at: url) else {
+                    return item
+                }
+                return item.withReclaimableBytes(directorySize(at: url))
             }
         default:
             return parsed
         }
+    }
+
+    /// Guards recursive sizing against a cache path resolving to a filesystem
+    /// root or a home/volume top level. Requires at least three path
+    /// components (e.g. `/Users/<me>/.npm`) and rejects the home directory
+    /// itself, so a misconfigured tool can't trigger a whole-disk walk.
+    static func isSafeCacheRoot(at url: URL) -> Bool {
+        let standardized = url.standardizedFileURL
+        let components = standardized.path.split(separator: "/", omittingEmptySubsequences: true)
+        guard components.count >= 3 else { return false }
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        return standardized.path != home
     }
 
     static func directoryExists(at url: URL) -> Bool {
