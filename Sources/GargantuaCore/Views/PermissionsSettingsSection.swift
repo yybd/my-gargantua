@@ -11,6 +11,7 @@ import SwiftUI
 struct PermissionsSettingsSection: View {
     @State private var hasFullDiskAccess = PermissionChecker.hasFullDiskAccess
     @State private var automation = PermissionChecker.finderAutomationPermission(prompt: false)
+    @State private var helperStatus = SMAppServicePrivilegedHelperInstaller().status()
     @State private var isRequesting = false
     @State private var requestTask: Task<Void, Never>?
 
@@ -29,14 +30,72 @@ struct PermissionsSettingsSection: View {
             SettingsHairlineDivider()
 
             automationRow
+
+            // Shown only when the build ships a helper (the AGPL source build
+            // signed by another team reports `.notFound` — no toggle to offer).
+            if helperStatus != .notFound {
+                SettingsHairlineDivider()
+
+                privilegedHelperRow
+            }
         }
         .onReceive(timer) { _ in
             hasFullDiskAccess = PermissionChecker.hasFullDiskAccess
+            helperStatus = SMAppServicePrivilegedHelperInstaller().status()
             if !isRequesting {
                 automation = PermissionChecker.finderAutomationPermission(prompt: false)
             }
         }
         .onDisappear { requestTask?.cancel() }
+    }
+
+    // MARK: - Privileged helper
+
+    private var privilegedHelperRow: some View {
+        HStack(spacing: GargantuaSpacing.space3) {
+            SettingsRowIcon(systemName: "lock.shield.fill", size: 20)
+
+            SettingsRowText(
+                title: "Privileged helper",
+                detail: helperDetail,
+                detailColor: helperDetailColor
+            )
+
+            Spacer(minLength: GargantuaSpacing.space3)
+
+            if helperStatus == .enabled {
+                grantedBadge
+            } else {
+                GargantuaButton("Open Settings", icon: "arrow.up.forward.app") {
+                    // Re-register so the toggle is present in the list, then
+                    // deep-link straight to the Login Items & Extensions pane.
+                    _ = try? SMAppServicePrivilegedHelperInstaller().register()
+                    openURL(loginItemsURL)
+                }
+            }
+        }
+    }
+
+    private var helperDetail: String {
+        switch helperStatus {
+        case .enabled:
+            return "Approved — Gargantua can remove system-owned items (helpers, prefpanes, root caches)."
+        case .requiresApproval, .notRegistered:
+            return "Not approved — system-owned items can’t be removed until you enable Gargantua under "
+                + "Login Items & Extensions."
+        case .notFound:
+            return ""
+        case .unknown:
+            return "Status unknown — check Gargantua under Login Items & Extensions."
+        }
+    }
+
+    private var helperDetailColor: Color {
+        helperStatus == .enabled ? GargantuaColors.safe : GargantuaColors.review
+    }
+
+    private var loginItemsURL: URL {
+        URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
     }
 
     // MARK: - Full Disk Access
