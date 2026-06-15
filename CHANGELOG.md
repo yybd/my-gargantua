@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-06-15
+
+### Added
+
+- **Triage re-run button.** Dashboard header shows a ⌘R "Re-run triage" affordance once triage has completed, so stale GB/item estimates can be refreshed without restarting a full scan; an AccretionDiskView spinner appears while scanning.
+- **Update-available signal in menu bar.** When Sparkle detects a new version, the menu bar icon shows an accent dot and the popover gains an "Update available — Install" row that launches the Sparkle install flow directly.
+
+### Changed
+
+- **Cleaner menu bar copy.** "Alerts pending" and related vague labels replaced with cleanup-focused wording ("Cleanup pending", "X to review") so the widget no longer reads like an error or security alert.
+
+### Fixed
+
+- **Menu bar icon was invisible.** The status item was silently present but never rendered because macOS requires template images for status bar extras and the icon had been swapped to a full-color PNG. Restored a monochrome "hurricane" SF Symbol as the label.
+- **Open spawned a duplicate window.** Clicking Open in the menu bar popover created a new tab whenever a window was already open. It now focuses the existing window and only opens a fresh one when none exists.
+- **Empty-state when no scan data is available.** The popover previously showed three zeroed-out metric rows when background scans are off. It now shows a "Run a quick scan" CTA pointing at the Quick Scan button instead.
+
 ## [0.4.2] - 2026-06-15
 
 ### Added
