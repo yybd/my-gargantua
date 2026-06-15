@@ -6,6 +6,8 @@ public struct DeveloperToolBinaryResolver: Sendable {
     public static let dockerEnvVarName = "GARGANTUA_DOCKER_BIN"
     public static let xcrunEnvVarName = "GARGANTUA_XCRUN_BIN"
     public static let pnpmEnvVarName = "GARGANTUA_PNPM_BIN"
+    public static let npmEnvVarName = "GARGANTUA_NPM_BIN"
+    public static let yarnEnvVarName = "GARGANTUA_YARN_BIN"
     public static let goEnvVarName = "GARGANTUA_GO_BIN"
     public static let cargoEnvVarName = "GARGANTUA_CARGO_BIN"
 
@@ -35,6 +37,25 @@ public struct DeveloperToolBinaryResolver: Sendable {
         "~/.asdf/shims/pnpm",
         "~/.volta/bin/pnpm",
         "~/.local/share/mise/shims/pnpm",
+    ]
+
+    static let npmCandidatePaths: [String] = [
+        "/opt/homebrew/bin/npm",
+        "/usr/local/bin/npm",
+        "~/.local/bin/npm",
+        "~/.asdf/shims/npm",
+        "~/.volta/bin/npm",
+        "~/.local/share/mise/shims/npm",
+    ]
+
+    static let yarnCandidatePaths: [String] = [
+        "/opt/homebrew/bin/yarn",
+        "/usr/local/bin/yarn",
+        "~/.yarn/bin/yarn",
+        "~/.local/bin/yarn",
+        "~/.asdf/shims/yarn",
+        "~/.volta/bin/yarn",
+        "~/.local/share/mise/shims/yarn",
     ]
 
     static let goCandidatePaths: [String] = [
@@ -110,6 +131,8 @@ public struct DeveloperToolBinaryResolver: Sendable {
         case .docker: dockerEnvVarName
         case .xcode: xcrunEnvVarName
         case .pnpm: pnpmEnvVarName
+        case .npm: npmEnvVarName
+        case .yarn: yarnEnvVarName
         case .go: goEnvVarName
         case .cargo: cargoEnvVarName
         }
@@ -120,13 +143,26 @@ public struct DeveloperToolBinaryResolver: Sendable {
         case .homebrew: homebrewCandidatePaths
         case .docker: dockerCandidatePaths
         case .xcode: xcrunCandidatePaths
-        case .pnpm: pnpmCandidatePaths + nodeManagedPnpmCandidatePaths()
+        case .pnpm: pnpmCandidatePaths + nodeManagedCandidatePaths(binary: "pnpm")
+        case .npm: npmCandidatePaths + nodeManagedCandidatePaths(binary: "npm")
+        case .yarn: yarnCandidatePaths + nodeManagedCandidatePaths(binary: "yarn")
         case .go: goCandidatePaths
         case .cargo: cargoCandidatePaths
         }
     }
 
     static func nodeManagedPnpmCandidatePaths(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String] {
+        nodeManagedCandidatePaths(binary: "pnpm", homeDirectory: homeDirectory)
+    }
+
+    /// Candidate paths for a Node-bundled CLI (`pnpm`, `npm`, `yarn`) under
+    /// every nvm-installed Node version, newest first. The CLI is co-located
+    /// with `node` in each version's `bin`, so resolving it there also lets
+    /// the spawned child find its interpreter.
+    static func nodeManagedCandidatePaths(
+        binary: String,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> [String] {
         let fm = FileManager.default
@@ -143,7 +179,7 @@ public struct DeveloperToolBinaryResolver: Sendable {
         return versions
             .filter { ((try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false) }
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedDescending }
-            .map { $0.appendingPathComponent("bin/pnpm").path }
+            .map { $0.appendingPathComponent("bin/\(binary)").path }
     }
 
     private static func versionArguments(for tool: DeveloperTool) -> [String] {
@@ -152,6 +188,8 @@ public struct DeveloperToolBinaryResolver: Sendable {
         case .docker: ["--version"]
         case .xcode: ["xcodebuild", "-version"]
         case .pnpm: ["--version"]
+        case .npm: ["--version"]
+        case .yarn: ["--version"]
         case .go: ["version"]
         case .cargo: ["--version"]
         }

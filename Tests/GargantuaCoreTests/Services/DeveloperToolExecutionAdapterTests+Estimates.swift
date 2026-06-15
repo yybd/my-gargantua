@@ -70,4 +70,66 @@ extension DeveloperToolExecutionAdapterTests {
         #expect(audit.entries.map(\.command) == ["pnpm store prune", "go clean -cache"])
         #expect(audit.entries.map(\.bytesFreed) == [0, 0])
     }
+
+    @Test("npm and Yarn cache cleans run their args and audit the sized estimate")
+    func npmAndYarnCacheCleanAudit() throws {
+        let npm = try makeScratchBinary(name: "npm")
+        let yarn = try makeScratchBinary(name: "yarn")
+        defer {
+            try? FileManager.default.removeItem(at: npm.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: yarn.deletingLastPathComponent())
+        }
+
+        let audit = AuditSpy()
+        let adapter = DeveloperToolExecutionAdapter(
+            resolver: DeveloperToolBinaryResolver(environment: [
+                DeveloperToolBinaryResolver.npmEnvVarName: npm.path,
+                DeveloperToolBinaryResolver.yarnEnvVarName: yarn.path,
+            ]),
+            runner: StubRunner(outputs: [
+                "npm cache clean --force": ProcessOutput(stdout: "", stderr: "", exitCode: 0),
+                "yarn cache clean": ProcessOutput(stdout: "success Cleared cache.\n", stderr: "", exitCode: 0),
+            ]),
+            auditRecorder: audit
+        )
+
+        let npmResult = try adapter.execute(
+            .npmCacheClean,
+            preview: cachePreview(tool: .npm, id: "npm-cache", command: ["npm", "config", "get", "cache"], bytes: 4_096),
+            confirmationMethod: .summaryDialog
+        )
+        let yarnResult = try adapter.execute(
+            .yarnCacheClean,
+            preview: cachePreview(tool: .yarn, id: "yarn-cache", command: ["yarn", "cache", "dir"], bytes: 8_192),
+            confirmationMethod: .summaryDialog
+        )
+
+        #expect(npmResult.estimatedBytesFreed == 4_096)
+        #expect(yarnResult.estimatedBytesFreed == 8_192)
+        #expect(audit.entries.map(\.command) == ["npm cache clean --force", "yarn cache clean"])
+        #expect(audit.entries.map(\.bytesFreed) == [4_096, 8_192])
+    }
+
+    private func cachePreview(
+        tool: DeveloperTool,
+        id: String,
+        command: [String],
+        bytes: Int64
+    ) -> DeveloperToolPreview {
+        DeveloperToolPreview(
+            tool: tool,
+            commandPreview: command,
+            items: [
+                DeveloperToolPreviewItem(
+                    id: id,
+                    tool: tool,
+                    title: id,
+                    detail: "/tmp/\(id)",
+                    reclaimableBytes: bytes,
+                    commandPreview: command
+                ),
+            ],
+            rawOutput: ""
+        )
+    }
 }

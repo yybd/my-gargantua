@@ -12,6 +12,8 @@ public enum DeveloperToolCleanupOperation: String, CaseIterable, Codable, Sendab
     case dockerSystemPrune
     case xcodeDeleteUnavailableSimulators
     case pnpmStorePrune
+    case npmCacheClean
+    case yarnCacheClean
     case goCleanCache
     case goCleanModcache
     case cargoPurgeExtractedCaches
@@ -28,6 +30,10 @@ public enum DeveloperToolCleanupOperation: String, CaseIterable, Codable, Sendab
             .xcode
         case .pnpmStorePrune:
             .pnpm
+        case .npmCacheClean:
+            .npm
+        case .yarnCacheClean:
+            .yarn
         case .goCleanCache, .goCleanModcache:
             .go
         case .cargoPurgeExtractedCaches:

@@ -66,14 +66,14 @@ The features that don't exist anywhere else in this category:
 - **Explainability as a first-class output.** Every finding answers "why is this here and why is it safe to remove" — from rule metadata directly, or from an optional local/cloud model that can add detail but never lower a rating.
 - **AI-agent automation over MCP.** Gargantua ships a local Model Context Protocol server with segregated read-only and destructive tool registries, bearer-token auth, per-client rate limits, and a hard `protected` reject. No other cleaner lets an AI agent drive it under guardrails.
 - **Local-first and telemetry-free.** The default explanation engine needs no network and no model. Local MLX inference runs entirely on Apple Silicon. Nothing phones home.
-- **Developer-native cleanup.** Tool-aware previews for Docker, Homebrew, Xcode simulators, pnpm, Go, and Cargo — run through each tool's own commands, not by blindly deleting directories.
+- **Developer-native cleanup.** Tool-aware previews for Docker, Homebrew, Xcode simulators, pnpm, npm, Yarn, Go, and Cargo — run through each tool's own commands, not by blindly deleting directories.
 - **Open and free at the source.** The paid build only gates the *execution* of destructive actions behind a one-time license; scans always run, and a clean source build is fully unlocked forever.
 
 ## Features
 
 - **Deep Clean**: YAML-driven scan rules for browser caches, app caches, system logs, temp files, Trash, installers, developer artifacts, Docker, Homebrew, language build caches, and review-gated stale developer versions.
 - **Dev Purge**: narrow-scope view limited to developer artifacts, Docker, Homebrew, and stale developer versions so a routine cleanup can't accidentally widen into a full scan.
-- **Developer Tools**: tool-native Homebrew, Docker, Xcode Simulator, pnpm, Go, and Cargo cleanup previews and run buttons, with Docker `system df` JSON parsing when available and full-modal acknowledgment for protected prunes.
+- **Developer Tools**: tool-native Homebrew, Docker, Xcode Simulator, pnpm, npm, Yarn, Go, and Cargo cleanup previews and run buttons, with Docker `system df` JSON parsing when available and full-modal acknowledgment for protected prunes.
 - **Smart Uninstaller**: app bundle inspection plus post-uninstall remnant detection for support files, launch agents, preferences, and related state, including a `review`-gated prune of orphaned Spotlight search rules (dead `com.apple.Spotlight` entries macOS leaves behind and offers no UI to remove).
 - **Duplicate Finder**: duplicate-group detection backed by `fclones`, scoped to user-defined personal-scope roots.
 - **File Health**: empty-file, big-file, similar-image, and broken-symlink scans through bundled `czkawka` helpers.

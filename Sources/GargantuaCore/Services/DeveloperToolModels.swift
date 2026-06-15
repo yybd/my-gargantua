@@ -6,6 +6,8 @@ public enum DeveloperTool: String, Codable, Sendable, CaseIterable, Identifiable
     case docker
     case xcode
     case pnpm
+    case npm
+    case yarn
     case go
     case cargo
 
@@ -17,6 +19,8 @@ public enum DeveloperTool: String, Codable, Sendable, CaseIterable, Identifiable
         case .docker: "Docker"
         case .xcode: "Xcode Simulator"
         case .pnpm: "pnpm"
+        case .npm: "npm"
+        case .yarn: "Yarn"
         case .go: "Go"
         case .cargo: "Cargo"
         }

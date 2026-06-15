@@ -20,6 +20,8 @@ extension DeveloperToolCleanupOperation {
         case .dockerSystemPrune: "System prune"
         case .xcodeDeleteUnavailableSimulators: "Delete unavailable simulators"
         case .pnpmStorePrune: "Prune unreferenced store packages"
+        case .npmCacheClean: "Clean npm cache"
+        case .yarnCacheClean: "Clean Yarn cache"
         case .goCleanCache: "Clean build cache"
         case .goCleanModcache: "Clean module download cache"
         case .cargoPurgeExtractedCaches: "Purge extracted Cargo caches"
@@ -48,6 +50,10 @@ extension DeveloperToolCleanupOperation {
             "Runs simctl's cleanup for simulator devices whose runtimes are no longer installed."
         case .pnpmStorePrune:
             "Asks pnpm to remove packages no current project store reference needs."
+        case .npmCacheClean:
+            "Force-clears npm's content-addressable cache. npm refetches packages from the registry on the next install."
+        case .yarnCacheClean:
+            "Clears Yarn's global package cache. Yarn refetches packages from the registry on the next install."
         case .goCleanCache:
             "Removes compiled package artifacts from Go's shared build cache."
         case .goCleanModcache:
@@ -115,6 +121,10 @@ extension DeveloperToolCleanupOperation {
             ["simctl", "delete", "unavailable"]
         case .pnpmStorePrune:
             ["store", "prune"]
+        case .npmCacheClean:
+            ["cache", "clean", "--force"]
+        case .yarnCacheClean:
+            ["cache", "clean"]
         case .goCleanCache:
             ["clean", "-cache"]
         case .goCleanModcache:
@@ -138,6 +148,8 @@ extension DeveloperToolCleanupOperation {
         case .docker: "docker"
         case .xcode: "xcrun"
         case .pnpm: "pnpm"
+        case .npm: "npm"
+        case .yarn: "yarn"
         case .go: "go"
         case .cargo: "cargo"
         }
@@ -156,14 +168,24 @@ extension DeveloperToolCleanupOperation {
             return (estimatedReclaimableBytes(in: preview) ?? 0) > 0
         case .xcodeDeleteUnavailableSimulators:
             return !preview.items.isEmpty
-        case .pnpmStorePrune:
-            return preview.items.contains { $0.id == "pnpm-store" }
-        case .goCleanCache:
-            return preview.items.contains { $0.id == "go-build-cache" }
-        case .goCleanModcache:
-            return preview.items.contains { $0.id == "go-module-cache" }
+        case .pnpmStorePrune, .npmCacheClean, .yarnCacheClean, .goCleanCache, .goCleanModcache:
+            guard let id = singlePreviewItemID else { return false }
+            return preview.items.contains { $0.id == id }
         case .cargoPurgeExtractedCaches:
             return preview.items.contains { Self.cargoPurgeTargetIDs.contains($0.id) }
+        }
+    }
+
+    /// The single preview-item ID a package-manager cache operation acts on,
+    /// shared by `isApplicable` and the reclaim-estimate lookup.
+    private var singlePreviewItemID: String? {
+        switch self {
+        case .pnpmStorePrune: "pnpm-store"
+        case .npmCacheClean: "npm-cache"
+        case .yarnCacheClean: "yarn-cache"
+        case .goCleanCache: "go-build-cache"
+        case .goCleanModcache: "go-module-cache"
+        default: nil
         }
     }
 
@@ -177,7 +199,7 @@ extension DeveloperToolCleanupOperation {
             return dockerReclaimableBytes(in: preview)
         case .xcodeDeleteUnavailableSimulators, .cargoPurgeExtractedCaches:
             return previewKnownBytes(preview)
-        case .pnpmStorePrune, .goCleanCache, .goCleanModcache:
+        case .pnpmStorePrune, .npmCacheClean, .yarnCacheClean, .goCleanCache, .goCleanModcache:
             return packageManagerReclaimableBytes(in: preview)
         }
     }
@@ -215,16 +237,8 @@ extension DeveloperToolCleanupOperation {
     }
 
     private func packageManagerReclaimableBytes(in preview: DeveloperToolPreview) -> Int64? {
-        switch self {
-        case .pnpmStorePrune:
-            return previewBytes(in: preview, itemID: "pnpm-store")
-        case .goCleanCache:
-            return previewBytes(in: preview, itemID: "go-build-cache")
-        case .goCleanModcache:
-            return previewBytes(in: preview, itemID: "go-module-cache")
-        default:
-            return nil
-        }
+        guard let id = singlePreviewItemID else { return nil }
+        return previewBytes(in: preview, itemID: id)
     }
 
     private func dockerBytes(in preview: DeveloperToolPreview, titles: Set<String>) -> Int64? {

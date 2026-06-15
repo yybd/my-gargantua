@@ -61,6 +61,22 @@ enum DeveloperToolPreviewOutputParser {
             parseXcodeUnavailableDevicesJSON(output: output, commandPreview: commandPreview)
         case .pnpm:
             parsePnpmStorePath(output: output, commandPreview: commandPreview)
+        case .npm:
+            parseCacheDirectoryPath(
+                output: output,
+                commandPreview: commandPreview,
+                tool: .npm,
+                id: "npm-cache",
+                title: "npm cache"
+            )
+        case .yarn:
+            parseCacheDirectoryPath(
+                output: output,
+                commandPreview: commandPreview,
+                tool: .yarn,
+                id: "yarn-cache",
+                title: "Yarn cache"
+            )
         case .go:
             parseGoEnv(output: output, commandPreview: commandPreview)
         case .cargo:
@@ -239,6 +255,36 @@ enum DeveloperToolPreviewOutputParser {
                 id: "pnpm-store",
                 tool: .pnpm,
                 title: "pnpm content-addressable store",
+                detail: path,
+                reclaimableBytes: nil,
+                commandPreview: commandPreview
+            ),
+        ]
+    }
+
+    /// npm (`npm config get cache`) and yarn classic (`yarn cache dir`) both
+    /// emit the cache directory as a single line on stdout. The reclaimable
+    /// size is filled in later by the adapter, which measures the directory.
+    private static func parseCacheDirectoryPath(
+        output: String,
+        commandPreview: [String],
+        tool: DeveloperTool,
+        id: String,
+        title: String
+    ) -> [DeveloperToolPreviewItem] {
+        guard let path = output
+            .split(separator: "\n")
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .first(where: { $0.hasPrefix("/") }),
+            !path.isEmpty else {
+            return []
+        }
+
+        return [
+            DeveloperToolPreviewItem(
+                id: id,
+                tool: tool,
+                title: title,
                 detail: path,
                 reclaimableBytes: nil,
                 commandPreview: commandPreview

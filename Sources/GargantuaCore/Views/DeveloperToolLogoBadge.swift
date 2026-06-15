@@ -53,6 +53,10 @@ struct DeveloperToolLogoBadge: View {
                 xcodeFallbackMark
             case .pnpm:
                 pnpmMark
+            case .npm:
+                npmMark
+            case .yarn:
+                yarnMark
             case .go:
                 goMark
             case .cargo:
@@ -135,6 +139,29 @@ struct DeveloperToolLogoBadge: View {
         return Color(red: 0.95, green: 0.72, blue: 0.14)
     }
 
+    private var npmMark: some View {
+        RoundedRectangle(cornerRadius: max(2, markSize * 0.12))
+            .fill(Color(red: 0.80, green: 0.15, blue: 0.13))
+            .overlay {
+                Text("npm")
+                    .font(.system(size: markSize * 0.34, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .minimumScaleFactor(0.5)
+            }
+            .frame(width: markSize, height: markSize * 0.7)
+    }
+
+    private var yarnMark: some View {
+        ZStack {
+            Circle()
+                .fill(Color(red: 0.16, green: 0.41, blue: 0.64))
+            Text("yarn")
+                .font(.system(size: markSize * 0.3, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .minimumScaleFactor(0.5)
+        }
+    }
+
     private var goMark: some View {
         Text("Go")
             .font(.system(size: markSize * 0.58, weight: .bold, design: .rounded))
@@ -171,7 +198,7 @@ struct DeveloperToolLogoBadge: View {
             ["/Applications/Docker.app", "/Applications/Docker Desktop.app"]
         case .xcode:
             ["/Applications/Xcode.app", "/Applications/Xcode-beta.app"]
-        case .homebrew, .pnpm, .go, .cargo:
+        case .homebrew, .pnpm, .npm, .yarn, .go, .cargo:
             []
         }
     }

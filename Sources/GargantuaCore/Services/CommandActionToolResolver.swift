@@ -31,6 +31,23 @@ public struct CommandActionToolResolver: Sendable {
             "~/.volta/bin/pnpm",
             "~/.local/share/mise/shims/pnpm",
         ],
+        "npm": [
+            "/opt/homebrew/bin/npm",
+            "/usr/local/bin/npm",
+            "~/.local/bin/npm",
+            "~/.asdf/shims/npm",
+            "~/.volta/bin/npm",
+            "~/.local/share/mise/shims/npm",
+        ],
+        "yarn": [
+            "/opt/homebrew/bin/yarn",
+            "/usr/local/bin/yarn",
+            "~/.yarn/bin/yarn",
+            "~/.local/bin/yarn",
+            "~/.asdf/shims/yarn",
+            "~/.volta/bin/yarn",
+            "~/.local/share/mise/shims/yarn",
+        ],
         "go": [
             "/opt/homebrew/bin/go",
             "/usr/local/bin/go",
@@ -88,8 +105,8 @@ public struct CommandActionToolResolver: Sendable {
         }
 
         guard var paths = candidates[tool] else { return nil }
-        if tool == "pnpm" {
-            paths += DeveloperToolBinaryResolver.nodeManagedPnpmCandidatePaths()
+        if ["pnpm", "npm", "yarn"].contains(tool) {
+            paths += DeveloperToolBinaryResolver.nodeManagedCandidatePaths(binary: tool)
         }
         for path in paths {
             let expanded = (path as NSString).expandingTildeInPath

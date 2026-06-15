@@ -95,6 +95,66 @@ extension DeveloperToolPreviewAdapterTests {
         #expect(paths == [pnpm.resolvingSymlinksInPath().path])
     }
 
+    @Test("npm preview reads and sizes the cache directory")
+    func npmPreview() throws {
+        let npm = try makeScratchBinary(name: "npm")
+        let cache = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DeveloperToolPreviewAdapterTests-npm-cache-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: npm.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: cache)
+        }
+        try makeSizedFile(at: cache.appendingPathComponent("_cacache/index"), byteCount: 512)
+
+        let runner = StubRunner(outputs: [
+            "npm config get cache": ProcessOutput(stdout: "\(cache.path)\n", stderr: "", exitCode: 0),
+        ])
+        let adapter = DeveloperToolPreviewAdapter(
+            resolver: DeveloperToolBinaryResolver(environment: [
+                DeveloperToolBinaryResolver.npmEnvVarName: npm.path,
+            ]),
+            runner: runner
+        )
+
+        let preview = try adapter.preview(.npm)
+
+        #expect(preview.commandPreview == [npm.path, "config", "get", "cache"])
+        #expect(preview.items.map(\.id) == ["npm-cache"])
+        #expect(preview.items.first?.detail == cache.path)
+        #expect((preview.items.first?.reclaimableBytes ?? 0) > 0)
+        #expect(preview.reclaimableBytes > 0)
+    }
+
+    @Test("Yarn preview reads and sizes the cache directory")
+    func yarnPreview() throws {
+        let yarn = try makeScratchBinary(name: "yarn")
+        let cache = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DeveloperToolPreviewAdapterTests-yarn-cache-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: yarn.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: cache)
+        }
+        try makeSizedFile(at: cache.appendingPathComponent("v6/npm-foo"), byteCount: 1024)
+
+        let runner = StubRunner(outputs: [
+            "yarn cache dir": ProcessOutput(stdout: "\(cache.path)\n", stderr: "", exitCode: 0),
+        ])
+        let adapter = DeveloperToolPreviewAdapter(
+            resolver: DeveloperToolBinaryResolver(environment: [
+                DeveloperToolBinaryResolver.yarnEnvVarName: yarn.path,
+            ]),
+            runner: runner
+        )
+
+        let preview = try adapter.preview(.yarn)
+
+        #expect(preview.commandPreview == [yarn.path, "cache", "dir"])
+        #expect(preview.items.map(\.id) == ["yarn-cache"])
+        #expect(preview.items.first?.detail == cache.path)
+        #expect((preview.items.first?.reclaimableBytes ?? 0) > 0)
+        #expect(preview.reclaimableBytes > 0)
+    }
+
     @Test("Go preview reads shared cache locations")
     func goPreview() throws {
         let go = try makeScratchBinary(name: "go")

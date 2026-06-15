@@ -78,6 +78,10 @@ public struct DeveloperToolPreviewAdapter: Sendable {
             ["simctl", "list", "-j", "devices", "unavailable"]
         case .pnpm:
             ["store", "path"]
+        case .npm:
+            ["config", "get", "cache"]
+        case .yarn:
+            ["cache", "dir"]
         case .go:
             ["env", "-json", "GOCACHE", "GOMODCACHE"]
         case .cargo:
@@ -87,7 +91,7 @@ public struct DeveloperToolPreviewAdapter: Sendable {
 
     static func structuredPreviewArguments(for tool: DeveloperTool) -> [String] {
         switch tool {
-        case .homebrew, .xcode, .pnpm, .go, .cargo:
+        case .homebrew, .xcode, .pnpm, .npm, .yarn, .go, .cargo:
             previewArguments(for: tool)
         case .docker:
             ["system", "df", "--format", "json"]
@@ -105,10 +109,10 @@ public struct DeveloperToolPreviewAdapter: Sendable {
             return parsed.map { item in
                 item.id == "pnpm-store" ? item.withReclaimableBytes(0) : item
             }
-        case .go:
+        case .go, .npm, .yarn:
+            let sizedIDs: Set<String> = ["go-build-cache", "go-module-cache", "npm-cache", "yarn-cache"]
             return parsed.map { item in
-                guard ["go-build-cache", "go-module-cache"].contains(item.id),
-                      let path = item.detail else {
+                guard sizedIDs.contains(item.id), let path = item.detail else {
                     return item
                 }
                 let url = URL(fileURLWithPath: path)
