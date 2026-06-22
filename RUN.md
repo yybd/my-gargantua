@@ -52,3 +52,24 @@ swift test
 ```bash
 Scripts/test.sh
 ```
+
+---
+
+## 3. בנייה, אריזה וחתימה מקומית (עם תעודת מפתח שלך)
+
+הגדרנו את קובץ `.env.release` עם ה-Team ID ותעודת החתימה שלך. כעת תוכל לבנות את האפליקציה כקובץ `.app` חתום במלואו שיוכל לרוץ מתיקיית היישומים עם הרשאות מנהל מערכת מלאות (הודות לחתימת ה-Privileged Helper):
+
+```bash
+# 1. בנייה במצב Release
+swift build -c release
+
+# 2. הרכבת ה-App Bundle (ייצור dist/Gargantua.app)
+Scripts/release/assemble-app.sh
+
+# 3. חתימת האפליקציה וכל תתי-הרכיבים שלה עם התעודה שלך
+Scripts/release/sign.sh
+
+# 4. העתקה לתיקיית היישומים (Applications)
+cp -R dist/Gargantua.app /Applications/
+```
+

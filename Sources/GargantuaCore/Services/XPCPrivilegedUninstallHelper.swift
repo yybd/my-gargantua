@@ -2,9 +2,9 @@ import Foundation
 @preconcurrency import ServiceManagement
 
 public enum PrivilegedHelperConfiguration {
-    public static let teamID = "3T877KDT79"
-    public static let appBundleID = "com.inceptyon.gargantua"
-    public static let helperBundleID = "com.inceptyon.gargantua.privileged-helper"
+    public static let teamID = "6AL5F29Z3D"
+    public static let appBundleID = "com.yybd.gargantua"
+    public static let helperBundleID = "com.yybd.gargantua.privileged-helper"
     public static let helperPlistName = "\(helperBundleID).plist"
 
     /// Compiled into both the app and the helper. The app pings the running
