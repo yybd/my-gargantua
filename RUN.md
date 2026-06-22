@@ -15,7 +15,10 @@ git checkout main
 # 2. משיכת העדכונים האחרונים מ-upstream
 git pull upstream main
 
-# 3. דחיפת העדכונים למאגר האישי שלך ב-GitHub
+# 3. החלת הגדרות החתימה וה-Team ID המקומיים שלך מחדש (למקרה שהקובץ נדרס בעדכון)
+Scripts/apply-local-config.py
+
+# 4. דחיפת העדכונים למאגר האישי שלך ב-GitHub
 git push origin main
 ```
 
